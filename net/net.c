@@ -1188,6 +1188,7 @@ NetReceive(volatile uchar * inpkt, int len)
 	NetRxPktLen = len;
 	et = (Ethernet_t *)inpkt;
 
+
 	/* too small packet? */
 	if (len < ETHER_HDR_SIZE)
 	{
@@ -1288,7 +1289,7 @@ NetReceive(volatile uchar * inpkt, int len)
 #endif
 		arp = (ARP_t *)ip;
 		if (len < ARP_HDR_SIZE) {
-			printf("kaiker,bad length %d < %d\n", len, ARP_HDR_SIZE);
+			printf("bad length %d < %d\n", len, ARP_HDR_SIZE);
 			return;
 		}
 		if (ntohs(arp->ar_hrd) != ARP_ETHER) {
@@ -1320,9 +1321,6 @@ NetReceive(volatile uchar * inpkt, int len)
 
 		switch (ntohs(arp->ar_op)) {
 		case ARPOP_REQUEST:		/* reply with our IP address	*/
-#ifdef ET_DEBUG
-			puts ("Got ARP REQUEST, return our IP\n");
-#endif
 			puts ("Got ARP REQUEST, return our IP\n");
 			pkt = (uchar *)et;
 			pkt += NetSetEther(pkt, et->et_src, PROT_ARP);
@@ -1338,39 +1336,37 @@ NetReceive(volatile uchar * inpkt, int len)
 			/* are we waiting for a reply */
 			if (!NetArpWaitPacketIP || !NetArpWaitPacketMAC)
 				break;
-#ifdef ET_DEBUG
+			
 			printf("Got ARP REPLY, set server/gtwy eth addr (%02x:%02x:%02x:%02x:%02x:%02x)\n",
 				arp->ar_data[0], arp->ar_data[1],
 				arp->ar_data[2], arp->ar_data[3],
 				arp->ar_data[4], arp->ar_data[5]);
-#endif
-			printf("Got ARP REPLY, set server/gtwy eth addr (%02x:%02x:%02x:%02x:%02x:%02x)\n",
-				arp->ar_data[0], arp->ar_data[1],
-				arp->ar_data[2], arp->ar_data[3],
-				arp->ar_data[4], arp->ar_data[5]);
+
 			tmp = NetReadIP(&arp->ar_data[6]);
 
 			/* matched waiting packet's address */
 			if (tmp == NetArpWaitReplyIP) {
-#ifdef ET_DEBUG
 				puts ("Got it\n");
-#endif
-				puts ("Got it\n");
+
 				/* save address for later use */
 				memcpy(NetArpWaitPacketMAC, &arp->ar_data[0], 6);
 
 #ifdef CONFIG_NETCONSOLE
 				(*packetHandler)(0,0,0,0);
 #endif
-				/* modify header, and transmit it */
-				memcpy(((Ethernet_t *)NetArpWaitTxPacket)->et_dest, NetArpWaitPacketMAC, 6);
-				(void) eth_send(NetArpWaitTxPacket, NetArpWaitTxPacketSize);
 
 				/* no arp request pending now */
 				NetArpWaitPacketIP = 0;
 				NetArpWaitTxPacketSize = 0;
 				NetArpWaitPacketMAC = NULL;
 
+				/* if Arp response requested by TFTP,
+				 * send "TFTP Read Request" packet 
+				 * immediately */
+				extern int TftpStarted;
+				if(TftpStarted == 1) {
+				    TftpSend ();
+				}
 			}
 			return;
 		default:

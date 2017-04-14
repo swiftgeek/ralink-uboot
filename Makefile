@@ -89,6 +89,66 @@ endif
 endif
 endif
 
+ifeq ($(ON_BOARD_DDR1),y)
+DRAM_TYPE=DDR
+endif
+ifeq ($(ON_BOARD_DDR2),y)
+DRAM_TYPE=DDR
+endif
+ifeq ($(ON_BOARD_SDR),y)
+DRAM_TYPE=SDR
+endif
+
+DRAM_SIZE=2
+ifeq ($(ON_BOARD_64M_DRAM_COMPONENT),y)
+DRAM_SIZE=8
+endif
+ifeq ($(ON_BOARD_128M_DRAM_COMPONENT),y)
+DRAM_SIZE=16
+endif
+ifeq ($(ON_BOARD_256M_DRAM_COMPONENT),y)
+DRAM_SIZE=32
+endif
+ifeq ($(ON_BOARD_512M_DRAM_COMPONENT),y)
+DRAM_SIZE=64
+endif
+ifeq ($(ON_BOARD_1024M_DRAM_COMPONENT),y)
+DRAM_SIZE=128
+endif
+
+# DRAM_WIDTH: SDR(DDR2)
+# 0:16(8)
+# 1:32(16)
+ifeq ($(ON_BOARD_DDR_WIDTH_16),y)
+DRAM_WIDTH=32
+else
+DRAM_WIDTH=16
+endif
+
+ifeq ($(ON_BOARD_32BIT_DRAM_BUS),y)
+DRAM_TOTAL_WIDTH=32
+else
+DRAM_TOTAL_WIDTH=16
+endif
+
+#default value for syscfg0/syscfg1
+ifeq ($(DRAM_CFG0),)
+DRAM_SYSCFG0=0xFF
+else
+DRAM_SYSCFG0=$(DRAM_CFG0)
+endif
+
+ifeq ($(DRAM_CFG1),)
+DRAM_SYSCFG1=0xFF
+else
+DRAM_SYSCFG1=$(DRAM_CFG1)
+endif
+
+ifeq ($(CPUPLLCFG),)
+CPU_PLL_CFG=0xFF
+else
+CPU_PLL_CFG=$(CPUPLLCFG)
+endif
 export	CROSS_COMPILE
 
 #########################################################################
@@ -119,15 +179,17 @@ LIBS += rtc/librtc.a
 #LIBS += dtt/libdtt.a
 LIBS += drivers/libdrivers.a
 
+ifdef RALINK_USB
+LIBS += fs/fat/libfat.a
+LIBS += disk/libdisk.a
+endif
+
 #LIBS += post/libpost.a post/cpu/libcpu.a
 LIBS += common/libcommon.a
 .PHONY : $(LIBS)
 
 # Add GCC lib
 PLATFORM_LIBS += -L $(shell dirname `$(CC) $(CFLAGS)  -print-libgcc-file-name`)
-
-
-KAIKER_LIBS := $(shell dirname $(CC) $(CFLAGS) -lgcc -print-libgcc-file-name)
 
 # The "tools" are needed early, so put this first
 # Don't include stuff already done in $(LIBS)
@@ -146,7 +208,7 @@ ifneq ($(CFG_ENV_IS), IN_FLASH)
 ALL += uboot.img
 endif
 
-all:		$(ALL)
+all:		clean $(ALL)
 
 u-boot.hex:	u-boot
 		$(OBJCOPY) ${OBJCFLAGS} -O ihex $< $@
@@ -162,7 +224,9 @@ uboot.img:	uboot.bin
 ifeq ($(CFG_ENV_IS), IN_SPI)
 		./tools/mkimage -A $(ARCH) -T standalone -C none \
 		-a $(TEXT_BASE) -e $(shell readelf -h u-boot | grep "Entry" | awk '{print $$4}') \
-		-n "$(shell echo $(CFG_ENV_IS) | sed -e 's/IN_//') Flash Image" -d $< $@
+		-n "$(shell echo $(CFG_ENV_IS) | sed -e 's/IN_//') Flash Image" \
+		-r $(DRAM_TYPE) -s $(DRAM_TOTAL_WIDTH) -t $(DRAM_SIZE) -u $(DRAM_WIDTH) \
+		-y $(DRAM_SYSCFG0) -z $(DRAM_SYSCFG1) -w $(CPU_PLL_CFG) -d $< $@
 endif
 #ifeq ($(CFG_ENV_IS), IN_NAND)
 #		$(MAKE) -C stage1
@@ -170,8 +234,15 @@ endif
 ifeq ($(CFG_ENV_IS), IN_NAND)
 		./tools/mkimage -A $(ARCH) -T standalone -C none \
 		-a $(TEXT_BASE) -e $(shell readelf -h u-boot | grep "Entry" | awk '{print $$4}') \
-		-n "$(shell echo $(CFG_ENV_IS) | sed -e 's/IN_//') Flash Image" -d $< $@
+		-n "$(shell echo $(CFG_ENV_IS) | sed -e 's/IN_//') Flash Image" \
+		-r $(DRAM_TYPE) -s $(DRAM_TOTAL_WIDTH) -t $(DRAM_SIZE) -u $(DRAM_WIDTH) \
+		-y $(DRAM_SYSCFG0) -z $(DRAM_SYSCFG1) -d $< $@
 endif
+		@echo ""
+		@echo "===============<<IMPORTANT>>=================="
+		@echo "Notes: Uboot firmware is uboot.img NOT uboot.bin"
+		@echo "================================================"
+		@echo ""
 
 u-boot.dis:	u-boot
 		$(OBJDUMP) -d $< > $@
@@ -1652,7 +1723,7 @@ backup:
 	F=`basename $(TOPDIR)` ; cd .. ; \
 	gtar --force-local -zcvf `date "+$$F-%Y-%m-%d-%T.tar.gz"` $$F
 
-menuconfig: config.in
+menuconfig: clean config.in
 	$(MAKE) -C scripts/lxdialog all
 	$(CONFIG_SHELL) scripts/Menuconfig config.in
 

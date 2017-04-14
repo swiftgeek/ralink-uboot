@@ -36,7 +36,7 @@
 
 #define CONFIG_MIPS32		1	/* MIPS 4Kc CPU core	*/
 //CONFIG_INCA_IP
-#if defined (RT3052_FPGA_BOARD) || defined (RT2883_FPGA_BOARD) || defined (RT3883_FPGA_BOARD) 
+#if defined (RT3052_FPGA_BOARD) || defined (RT3352_FPGA_BOARD) || defined (RT2883_FPGA_BOARD) || defined (RT3883_FPGA_BOARD)  || defined (RT5350_FPGA_BOARD) || defined (RT6855_FPGA_BOARD)
 #define FPGA_BOARD_CLOCK_RATE 40000000
 #else
 #define FPGA_BOARD_CLOCK_RATE 25000000
@@ -51,6 +51,10 @@
 #define CPU_CLOCK_RATE	266666666 /* default: 150 MHz clock for the MIPS core */
 #elif defined (RT3052_ASIC_BOARD)
 #define CPU_CLOCK_RATE	384000000 
+#elif defined (RT3352_ASIC_BOARD)
+#define CPU_CLOCK_RATE	400000000 
+#elif defined (RT6855_ASIC_BOARD)
+#define CPU_CLOCK_RATE	400000000 
 #elif defined (RT2883_ASIC_BOARD)
 #define CPU_CLOCK_RATE	400000000 
 #elif defined (RT3883_ASIC_BOARD)
@@ -114,8 +118,14 @@
 #define	CFG_PROMPT		"RT2883 # "
 #elif defined (RT3052_FPGA_BOARD) || defined (RT3052_ASIC_BOARD) 
 #define	CFG_PROMPT		"RT3052 # "
+#elif defined (RT3352_FPGA_BOARD) || defined (RT3352_ASIC_BOARD) 
+#define	CFG_PROMPT		"RT3352 # "
 #elif defined (RT3883_FPGA_BOARD) || defined (RT3883_ASIC_BOARD) 
 #define	CFG_PROMPT		"RT3883 # "
+#elif defined (RT5350_FPGA_BOARD) || defined (RT5350_ASIC_BOARD) 
+#define	CFG_PROMPT		"RT5350 # "
+#elif defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) 
+#define	CFG_PROMPT		"RT6855 # "
 #else
 #define	CFG_PROMPT		"RTxxxx # "
 #endif
@@ -123,7 +133,7 @@
 #define	CFG_PBSIZE (CFG_CBSIZE+sizeof(CFG_PROMPT)+16)  /* Print Buffer Size */
 #define	CFG_MAXARGS		16		/* max number of command args*/
 
-#define CFG_MALLOC_LEN		128*1024
+#define CFG_MALLOC_LEN		256*1024
 
 #define CFG_BOOTPARAMS_LEN	128*1024
 
@@ -203,7 +213,11 @@
 #define PHYS_FLASH_START	PHYS_FLASH_1 /* Address for issuing flash command */
 #endif
 #endif
-#elif defined (RT2883_FPGA_BOARD) || defined (RT2883_ASIC_BOARD) || defined (RT3883_FPGA_BOARD) || defined (RT3883_ASIC_BOARD)
+#elif defined (RT2883_FPGA_BOARD) || defined (RT2883_ASIC_BOARD) || \
+      defined (RT3883_FPGA_BOARD) || defined (RT3883_ASIC_BOARD) || \
+      defined (RT3352_FPGA_BOARD) || defined (RT3352_ASIC_BOARD) || \
+      defined (RT5350_FPGA_BOARD) || defined (RT5350_ASIC_BOARD) || \
+      defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD)
 #define PHYS_FLASH_START	0xBC000000 /* Flash Bank #2 */
 #define PHYS_FLASH_1		0xBC000000 /* Flash Bank #1 */
   #ifdef DUAL_IMAGE_SUPPORT
@@ -272,6 +286,7 @@
 #define CFG_CONFIG_SIZE		0x20000
 #define CFG_FACTORY_SIZE	0x20000
 #define CFG_ENV_ADDR		(PHYS_FLASH_2 + 0x1000000 - CFG_BOOTLOADER_SIZE)
+#define CFG_FACTORY_ADDR	(PHYS_FLASH_2 + 0x1000000 - CFG_FACTORY_SIZE)
 #define CFG_KERN_ADDR		(CFG_FLASH_BASE + CFG_BOOTLOADER_SIZE)
 #define CFG_KERN2_ADDR		(CFG_FLASH2_BASE + CFG_BOOTLOADER_SIZE)
 #else
@@ -279,6 +294,7 @@
 #define CFG_CONFIG_SIZE		0x10000
 #define CFG_FACTORY_SIZE	0x10000
 #define CFG_ENV_ADDR		(CFG_FLASH_BASE + CFG_BOOTLOADER_SIZE)
+#define CFG_FACTORY_ADDR	(CFG_FLASH_BASE + CFG_BOOTLOADER_SIZE + CFG_CONFIG_SIZE)
 #define CFG_KERN_ADDR		(CFG_FLASH_BASE + (CFG_BOOTLOADER_SIZE + CFG_CONFIG_SIZE + CFG_FACTORY_SIZE))
 #ifdef DUAL_IMAGE_SUPPORT
 #define CFG_KERN2_ADDR		(CFG_FLASH2_BASE + (CFG_BOOTLOADER_SIZE + CFG_CONFIG_SIZE + CFG_FACTORY_SIZE))
@@ -339,12 +355,15 @@
  * System Controller	(0x00300000)
  *   Offset
  *   0x10  -- SYSCFG		System Configuration Register
+ *   0x30  -- CLKCFG1		Clock Configuration Register
  *   0x34  -- RSTCTRL		Reset Control Register
  *   0x38  -- RSTSTAT		Reset Status Register 
  *   0x60  -- GPIOMODE		GPIO Mode Control Register 
  */
 #define RT2880_SYS_CNTL_BASE			(RALINK_SYSCTL_BASE)
 #define RT2880_SYSCFG_REG			(RT2880_SYS_CNTL_BASE+0x10)
+#define RT2880_SYSCFG1_REG			(RT2880_SYS_CNTL_BASE+0x14)
+#define RT2880_CLKCFG1_REG			(RT2880_SYS_CNTL_BASE+0x30)
 #define RT2880_RSTCTRL_REG			(RT2880_SYS_CNTL_BASE+0x34)
 #define RT2880_RSTSTAT_REG			(RT2880_SYS_CNTL_BASE+0x38)
 #define RT2880_GPIOMODE_REG			(RT2880_SYS_CNTL_BASE+0x60)
@@ -357,10 +376,30 @@
 #define RT2880_REG_PIODATA      (RT2880_PRGIO_ADDR + 0x20)
 #define RT2880_REG_PIODIR       (RT2880_PRGIO_ADDR + 0x24)
 
-#define RT2882_REG(x)		(*((volatile u32 *)(x)))	
+#define RALINK_REG(x)		(*((volatile u32 *)(x)))	
 
 #define RT2880_WDRST            (1<<1)
 #define RT2880_SWSYSRST         (1<<2)
 #define RT2880_SWCPURST         (1<<3)
+
+
+#define RT2880_UPHY0_CLK_EN		(1<<18)
+#define RT2880_UPHY1_CLK_EN		(1<<20)
+
+
+/*
+* for USB
+*/
+#ifdef RALINK_USB
+#define CONFIG_USB_OHCI		1
+#define CONFIG_SYS_USB_OHCI_MAX_ROOT_PORTS	2
+#define CONFIG_SYS_USB_OHCI_REGS_BASE		0x101C1000
+#define CONFIG_SYS_USB_OHCI_SLOT_NAME		"rt3680"
+#define CONFIG_USB_EHCI		1
+#define CONFIG_USB_STORAGE    1
+#define CONFIG_DOS_PARTITION
+#define LITTLEENDIAN
+#define CONFIG_CRC32_VERIFY
+#endif /* RALINK_USB */
 
 #endif	/* __CONFIG_H */

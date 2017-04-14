@@ -13,11 +13,69 @@
 #define ra_dbg(args...)
 /*#define ra_dbg(args...) do { if (1) printf(args); } while(0)*/
 
+#define READ_STATUS_RETRY	1000
 #define CLEAR_INT_STATUS()	ra_outl(NFC_INT_ST, ra_inl(NFC_INT_ST))
 #define NFC_TRANS_DONE()	(ra_inl(NFC_INT_ST) & INT_ST_ND_DONE)
 
 
-static int nfc_all_reset(void);
+static int nfc_wait_ready(int snooze_ms);
+int nfc_read_page(char *buf, int page);
+
+/**
+ * reset nand chip
+ */
+static int nfc_chip_reset(void)
+{
+	int status;
+
+	//ra_dbg("%s:\n", __func__);
+
+	// reset nand flash
+	ra_outl(NFC_CMD1, 0x0);
+	ra_outl(NFC_CMD2, 0xff);
+	ra_outl(NFC_ADDR, 0x0);
+	ra_outl(NFC_CONF, 0x0411);
+
+	status = nfc_wait_ready(5);  //erase wait 5us
+	if (status & NAND_STATUS_FAIL) {
+		printf("%s: fail\n", __func__);
+		return -1;
+	}
+	return 0;
+}
+
+/** 
+ * clear NFC and flash chip.
+ */
+static int nfc_all_reset(void)
+{
+	int retry;
+
+	// reset controller
+	ra_outl(NFC_CTRL, ra_inl(NFC_CTRL) | 0x02); //clear data buffer
+	ra_outl(NFC_CTRL, ra_inl(NFC_CTRL) & ~0x02); //clear data buffer
+
+	CLEAR_INT_STATUS();
+
+	retry = READ_STATUS_RETRY;
+	while ((ra_inl(NFC_INT_ST) & 0x02) != 0x02 && retry--);
+	if (retry <= 0) {
+		printf("%s: clean buffer fail\n", __func__);
+		return -1;
+	}
+
+	retry = READ_STATUS_RETRY;
+	while ((ra_inl(NFC_STATUS) & 0x1) != 0x0 && retry--) { //fixme, controller is busy ?
+		udelay(1);
+	}
+	if (retry <= 0) {
+		printf("%s: controller is still busy?\n");
+		return -1;
+	}
+
+	return nfc_chip_reset();
+}
+
 
 /** NOTICE: only called by nfc_wait_ready().
  * @return -1, nfc can not get transction done 
@@ -45,7 +103,7 @@ static int nfc_read_status(char *status)
 	 * 3. SUGGESTION: call nfc_read_status() from nfc_wait_ready(),
 	 * that is aware about caller (in sementics) and has snooze plused nfc ND_DONE.
 	 */
-	retry = 100; 
+	retry = READ_STATUS_RETRY; 
 	do {
 		nfc_st = ra_inl(NFC_STATUS);
 		int_st = ra_inl(NFC_INT_ST);
@@ -97,116 +155,23 @@ static int nfc_device_ready(void)
 }
 #endif
 
-/** wait nand chip becomeing ready and return queried status.
- * @param snooze: sleep time in ms unit before polling device ready.
- * @return status of nand chip
- * @return NAN_STATUS_FAIL if something unexpected.
- */
-static int nfc_wait_ready(int snooze_ms)
-{
-	int retry;
-	char status;
-
-	udelay(1000 * snooze_ms);
-
-	// wait nfc idle,
-	if (snooze_ms == 0)
-		snooze_ms = 1;
-	retry = snooze_ms * 1000; //udelay(1)
-
-	while (!NFC_TRANS_DONE() && retry--) {
-		udelay(1);
-	}
-	if (!NFC_TRANS_DONE()) {
-		printf("%s: no transaction done\n", __func__);
-		return NAND_STATUS_FAIL;
-	}
-
-#if !defined (CONFIG_NOT_SUPPORT_RB)
-	//fixme
-	while (!(status = nfc_device_ready()) && retry--) {
-		udelay(1);
-	}
-	if (status == 0) {
-		printf("%s: no device ready.\n", __func__);
-		return NAND_STATUS_FAIL;
-	}
-
-	nfc_read_status(&status);
-	return status;
-#else
-	while (retry--) {
-		nfc_read_status(&status);
-		if (status & NAND_STATUS_READY)
-			break;
-		udelay(1);
-	}
-	if (retry < 0) {
-		printf("%s: no device ready, status(%x).\n", __func__, status);
-		return NAND_STATUS_FAIL;
-	}
-	return status;
-#endif
-}
-
-/**
- * reset nand chip
- */
-static int nfc_chip_reset(void)
-{
-	int status;
-
-	//ra_dbg("%s:\n", __func__);
-
-	// reset nand flash
-	ra_outl(NFC_CMD1, 0xff);
-	ra_outl(NFC_ADDR, 0xfffffff);
-	ra_outl(NFC_CONF, 0x0141 | (CFG_ADDR_CYCLE << 16));
-
-	status = nfc_wait_ready(0);  //erase wait 5us
-	if (status & NAND_STATUS_FAIL) {
-		printf("%s: fail\n", __func__);
-		return -1;
-	}
-	return 0;
-}
-
-/** 
- * clear NFC and flash chip.
- */
-static int nfc_all_reset(void)
-{
-	int retry;
-
-	// reset controller
-	ra_outl(NFC_CTRL, ra_inl(NFC_CTRL) | 0x02); //clear data buffer
-	ra_outl(NFC_CTRL, ra_inl(NFC_CTRL) & ~0x02); //clear data buffer
-
-	CLEAR_INT_STATUS();
-
-	retry = 100;
-	while ((ra_inl(NFC_INT_ST) & 0x02) != 0x02 && retry--);
-	if (retry <= 0) {
-		printf("%s: clean buffer fail\n", __func__);
-		return -1;
-	}
-
-	retry = 100;
-	while ((ra_inl(NFC_STATUS) & 0x1) != 0x0 && retry--) { //fixme, controller is busy ?
-		udelay(1);
-	}
-	if (retry <= 0) {
-		printf("%s: controller is still busy?\n");
-		return -1;
-	}
-
-	return nfc_chip_reset();
-}
-
 unsigned long ranand_init(void)
 {
+#if defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD)
+	//set NAND_SPI_SHARE to 3b'100
+	ra_and(RALINK_SYSCTL_BASE+0x60, ~(0x7<<11));
+	ra_or(RALINK_SYSCTL_BASE+0x60, (0x4<<11));
+
+	//512 bytes per page
+	ra_and(RALINK_NAND_CTRL_BASE+0x2c, ~1);
+#endif
+
 	//maks sure gpio-0 is input
 	ra_outl(RALINK_PIO_BASE+0x24, ra_inl(RALINK_PIO_BASE+0x24) & ~0x01);
+
+	//set WP to high
+	ra_or(NFC_CTRL, 0x01);
+	udelay(100);
 
 	if (nfc_all_reset() != 0)
 		return -1;
@@ -229,7 +194,7 @@ static int _ra_nand_pull_data(char *buf, int len)
 	unsigned int ret_data;
 	int ret_size;
 
-	retry = 100;
+	retry = READ_STATUS_RETRY;
 	while (len > 0) {
 		int_st = ra_inl(NFC_INT_ST);
 		if (int_st & INT_ST_RX_BUF_RDY) {
@@ -305,11 +270,9 @@ static int _ra_nand_push_data(char *buf, int len)
 			if (tx_size == 4)
 				tx_data = (*p++);
 			else {
-				__u8 *q;
+				__u8 *q = (__u8 *)p;
 				for (iter = 0; iter < tx_size; iter++)
-					tx_data |= (*p++ << (8*iter));
-				q = (__u8 *)p;
-				q -= (4 - tx_size);
+					tx_data |= (*q++ << (8*iter));
 				p = (__u32 *)q;
 			}
 #endif
@@ -331,6 +294,57 @@ static int _ra_nand_push_data(char *buf, int len)
 	return (int)(p - buf);
 #else
 	return ((int)p - (int)buf);
+#endif
+}
+
+/** wait nand chip becomeing ready and return queried status.
+ * @param snooze: sleep time in ms unit before polling device ready.
+ * @return status of nand chip
+ * @return NAN_STATUS_FAIL if something unexpected.
+ */
+static int nfc_wait_ready(int snooze_ms)
+{
+	int retry;
+	char status;
+
+	udelay(1000 * snooze_ms);
+
+	// wait nfc idle,
+	if (snooze_ms == 0)
+		snooze_ms = 1;
+	retry = snooze_ms * 1000; //udelay(1)
+
+	while (!NFC_TRANS_DONE() && retry--) {
+		udelay(1);
+	}
+	if (!NFC_TRANS_DONE()) {
+		printf("%s: no transaction done\n", __func__);
+		return NAND_STATUS_FAIL;
+	}
+
+#if !defined (CONFIG_NOT_SUPPORT_RB)
+	while (!(status = nfc_device_ready()) && retry--) {
+		udelay(1);
+	}
+	if (status == 0) {
+		printf("%s: no device ready.\n", __func__);
+		return NAND_STATUS_FAIL;
+	}
+
+	nfc_read_status(&status);
+	return status;
+#else
+	while (retry--) {
+		nfc_read_status(&status);
+		if (status & NAND_STATUS_READY)
+			break;
+		udelay(1);
+	}
+	if (retry < 0) {
+		printf("%s: no device ready, status(%x).\n", __func__, status);
+		return NAND_STATUS_FAIL;
+	}
+	return status;
 #endif
 }
 
@@ -386,7 +400,7 @@ static inline int nfc_read_raw_data(int cmd1, int bus_addr, int conf, char *buf,
 		return NAND_STATUS_FAIL;
 	}
 
-	ret = nfc_wait_ready(0); //wait ready 
+	ret = nfc_wait_ready(3); //wait ready 
 	if (ret & NAND_STATUS_FAIL) {
 		printf("%s: fail\n", __func__);
 		return NAND_STATUS_FAIL;
@@ -461,6 +475,105 @@ int nfc_read_oob(int page, unsigned int offs, char *buf, int len)
 }
 
 /**
+ * @return !0: fail
+ * @return 0: OK
+ */
+int nfc_write_oob(int page, unsigned int offs, char *buf, int len)
+{
+	unsigned int cmd1 = 0, cmd3=0, conf = 0;
+	unsigned int bus_addr = 0;
+	int status;
+
+#if 0
+	int pages_perblock = 1<<(ra->erase_shift - ra->page_shift);
+	// constrain of nfc read function
+	BUG_ON (offs >> ra->oob_shift); //page boundry
+	BUG_ON ((unsigned int)(((offs + len) >> ra->oob_shift) + page) >
+			((page + pages_perblock) & ~(pages_perblock-1))); //block boundry
+#endif
+
+	bus_addr = (page << (CFG_COLUMN_ADDR_CYCLE*8)) | (offs & ((1<<CFG_COLUMN_ADDR_CYCLE*8) - 1));
+
+	cmd1 = 0x08050;
+	cmd3 = 0x10;
+	conf = 0x001223 | ((CFG_ADDR_CYCLE)<<16) | ((len) << 20);
+
+	// set NFC
+	ra_dbg("%s: cmd1: %x, cmd3: %x bus_addr: %x, conf: %x, len:%x\n",
+			__func__, cmd1, cmd3, bus_addr, conf, len);
+
+	status = nfc_write_raw_data(cmd1, cmd3, bus_addr, conf, buf, len);
+	if (status & NAND_STATUS_FAIL) {
+		printf("%s: fail \n", __func__);
+		return -1;
+	}
+
+	return 0;
+}
+
+int nfc_ecc_verify(char *buf, int page, int mode)
+{
+	int ret, i;
+	char *p, *e;
+	int ecc;
+
+	//ra_dbg("%s, page:%x mode:%d\n", __func__, page, mode);
+
+	if (mode == FL_WRITING) {
+		int len = CFG_PAGESIZE + CFG_PAGE_OOBSIZE;
+		int conf = 0x000141| ((CFG_ADDR_CYCLE)<<16) | (len << 20);
+		char rbbuf[CFG_PAGESIZE+CFG_PAGE_OOBSIZE];
+		conf |= (1<<3); //(ecc_en)
+
+		p = rbbuf;
+		ret = nfc_read_page(p, page);
+		if (ret == 0)
+			goto ecc_check;
+
+		//FIXME, double comfirm
+		printf("%s: read back fail, try again \n",__func__);
+		ret = nfc_read_page(p, page);
+		if (ret != 0) {
+			printf("\t%s: read back fail agian \n",__func__);
+			goto bad_block;
+		}
+	}
+	else if (mode == FL_READING) {
+		p = buf;
+	}
+	else
+		return -2;
+
+ecc_check:
+	p += (1<<CONFIG_PAGE_SIZE_BIT);
+	ecc = ra_inl(NFC_ECC);
+	if (ecc == 0) //clean page.
+		return 0;
+	e = (char*)&ecc;
+	for (i=0; i<CONFIG_ECC_BYTES; i++) {
+		if ((char)*(p +i) != (char)0xff)
+			break;
+		if (i == CONFIG_ECC_BYTES - 1) {
+			//printf("skip ecc for empty flash\n");
+			return 0;
+		}
+	}
+	for (i=0; i<CONFIG_ECC_BYTES; i++) {
+		int eccpos = CONFIG_ECC_OFFSET + i;
+		if (*(p + eccpos) != *(e + i)) {
+			printf("%s mode:%s, invalid ecc, page: %x read:%x %x %x, ecc:%x \n",
+					__func__, (mode == FL_READING)?"read":"write", page,
+					*(p+ CONFIG_ECC_OFFSET), *(p+ CONFIG_ECC_OFFSET+1), *(p+ CONFIG_ECC_OFFSET +2), ecc);
+			return -1;
+		}
+	}
+	return 0;
+
+bad_block:
+	return -1;
+}
+
+/**
  * @return -EIO, writing size is less than a page 
  * @return 0, OK
  */
@@ -492,8 +605,7 @@ int nfc_read_page(char *buf, int page)
 
 		conf = 0x000141| ((CFG_ADDR_CYCLE)<<16) | (len << 20); 
 #if !defined (WORKAROUND_RX_BUF_OV)
-/*                if (ecc_en) */
-/*                        conf |= (1<<3); */
+		conf |= (1<<3); 
 #endif
 
 		status = nfc_read_raw_data(cmd1, bus_addr, conf, buf+offs, len);
@@ -506,21 +618,12 @@ int nfc_read_page(char *buf, int page)
 		size -= len;
 	}
 
-#if 0
 	// verify and correct ecc
-	if ((flags & (FLAG_VERIFY | FLAG_ECC_EN)) == (FLAG_VERIFY | FLAG_ECC_EN)) {
-		status = nfc_ecc_verify(ra, buf, page, FL_READING);	
-		if (status != 0) {
-			printf("%s: fail, buf:%x, page:%x, flag:%x,   \n", 
-					__func__, buf, page, flags);
-			return -EBADMSG;
-		}
+	status = nfc_ecc_verify(buf, page, FL_READING);	
+	if (status != 0) {
+		printf("%s: fail, buf:%x, page:%x, \n", __func__, buf, page);
+		return -2;
 	}
-	else {
-		// fix,e not yet support
-		ra->buffers_page = -1; //cached
-	}
-#endif
 
 	return 0;
 }
@@ -546,7 +649,7 @@ int nfc_write_page(char *buf, int page)
 	conf |= (1<<3); //enable ecc
 
 #if 0 //winfred testing for bad block
-	if (bus_addr == 0x4000)
+	if (bus_addr == 0x2c000)
 	{
 		printf("hmm... create a bad block %x\n", bus_addr);
 		*(buf+512+4) = 0x11;
@@ -558,20 +661,22 @@ int nfc_write_page(char *buf, int page)
 		return -1;
 	}
 
-#if 0
-	if (flags & FLAG_VERIFY) { // verify and correct ecc
-		status = nfc_ecc_verify(ra, buf, page, FL_WRITING);
-	
-		if (status != 0) {
-			printf("%s: ecc_verify fail: ret:%x \n", __func__, status);
-			return -EBADMSG;
-		}
+	status = nfc_ecc_verify(buf, page, FL_WRITING);
+	if (status != 0) {
+		printf("%s: ecc_verify fail: ret:%x \n", __func__, status);
+		*(buf+CFG_PAGESIZE+CONFIG_BAD_BLOCK_POS) = 0x33;
+		page -= page % (CFG_BLOCKSIZE/CFG_PAGESIZE);
+		printf("create a bad block at page %x\n", page);
+		status = nfc_write_oob(page, CONFIG_BAD_BLOCK_POS, buf+CFG_PAGESIZE+CONFIG_BAD_BLOCK_POS, 1);
+		if (status == 0)
+			printf("bad block acknowledged, please write again\n");
+		else
+			printf("failed to create a bad block\n");
+		return -2;
 	}
-#endif
 
 	return 0;
 }
-
 
 #ifdef CONFIG_BADBLOCK_CHECK
 int ranand_block_isbad(loff_t offs)
@@ -635,96 +740,6 @@ int ranand_erase(unsigned int offs, int len)
 	}
 
 	return ret;
-}
-
-int ranand_read(char *buf, unsigned int from, int datalen)
-{
-	int page, i = 0;
-	size_t retlen = 0;
-	int pagemask = (CFG_PAGESIZE -1);
-	loff_t addr = from;
-	char buffers[CFG_PAGESIZE + CFG_PAGE_OOBSIZE];
-
-	if (buf == 0)
-		return 0;
-
-/*        while (datalen || ooblen) {*/
-	while (datalen) {
-		int len;
-		int ret;
-		int offs;
-
-		ra_dbg("%s (%d): addr:%x, datalen:%x\n", 
-				__func__, i++, (unsigned int)addr, datalen);
-
-		page = (int)((addr & (CFG_CHIPSIZE-1)) >> CONFIG_PAGE_SIZE_BIT); 
-
-#ifdef CONFIG_BADBLOCK_CHECK
-		/* if we have a bad block, read from next block instead */
-		if (ranand_block_isbad(addr)) {
-			printf("%s: skip reading a bad block %x ->", __func__, (unsigned int)addr);
-			addr += (1 << (CONFIG_PAGE_SIZE_BIT + CONFIG_NUMPAGE_PER_BLOCK_BIT));;
-			printf(" %x\n", (unsigned int)addr);
-			continue;
-		}
-#endif
-
-		ret = nfc_read_page(buffers, page);
-		//FIXME, something strange here, some page needs 2 more tries to guarantee read success.
-		if (ret) {
-			printf("read again:\n");
-			ret = nfc_read_page(buffers, page);
-
-			if (ret) {
-				printf("read again fail \n");
-#if 0
-				nand_bbt_set(ra, addr >> (CONFIG_PAGE_SIZE_BIT + CONFIG_NUMPAGE_PER_BLOCK_BIT), BBT_TAG_BAD);
-				if ((ret != -EUCLEAN) && (ret != -EBADMSG)) {
-					return ret;
-				}
-				else {
-					/* ecc verification fail, but data need to be returned. */
-				}
-#endif
-			}
-			else {
-				printf(" read agian susccess \n");
-			}
-		}
-
-		// oob read
-#if 0
-		if (oob && ooblen > 0) {
-			len = nand_read_oob_buf(ra, oob, ooblen, ops->mode, ops->ooboffs);
-			if (len < 0) {
-				printf("nand_read_oob_buf: fail return %x \n", len);
-				return -EINVAL;
-			}
-
-			oob += len;
-			ops->oobretlen += len;
-			ooblen -= len;
-		}
-#endif
-
-		// data read
-		offs = addr & pagemask;
-		len = min(datalen, CFG_PAGESIZE - offs);
-		if (buf && len > 0) {
-			memcpy(buf, buffers + offs, len); // we can not sure ops->buf wether is DMA-able.
-
-			buf += len;
-			datalen -= len;
-			retlen += len;
-			if (ret)
-				return -1;
-		}
-
-/*                nand_bbt_set(ra, addr >> ra->erase_shift, BBT_TAG_GOOD);*/
-		// address go further to next page, instead of increasing of length of write. This avoids some special cases wrong.
-		addr = (page+1) << CONFIG_PAGE_SIZE_BIT;
-	}
-	return retlen;
 }
 
 int ranand_write(char *buf, unsigned int to, int datalen)
@@ -830,6 +845,100 @@ int ranand_write(char *buf, unsigned int to, int datalen)
 	return retlen;
 }
 
+int ranand_read(char *buf, unsigned int from, int datalen)
+{
+	int page, i = 0;
+	size_t retlen = 0;
+	int pagemask = (CFG_PAGESIZE -1);
+	loff_t addr = from;
+	char buffers[CFG_PAGESIZE + CFG_PAGE_OOBSIZE];
+
+	if (buf == 0)
+		return 0;
+
+/*        while (datalen || ooblen) {*/
+	while (datalen) {
+		int len;
+		int ret;
+		int offs;
+
+		ra_dbg("%s (%d): addr:%x, datalen:%x\n", 
+				__func__, i++, (unsigned int)addr, datalen);
+
+		page = (int)((addr & (CFG_CHIPSIZE-1)) >> CONFIG_PAGE_SIZE_BIT); 
+
+#ifdef CONFIG_BADBLOCK_CHECK
+		/* if we have a bad block, read from next block instead */
+		if (ranand_block_isbad(addr)) {
+			printf("%s: skip reading a bad block %x ->", __func__, (unsigned int)addr);
+			addr += (1 << (CONFIG_PAGE_SIZE_BIT + CONFIG_NUMPAGE_PER_BLOCK_BIT));;
+			printf(" %x\n", (unsigned int)addr);
+			continue;
+		}
+#endif
+
+		if (datalen > (CFG_PAGESIZE+CFG_PAGE_OOBSIZE) && (page & 0x1f) == 0)
+			printf(".");
+		ret = nfc_read_page(buffers, page);
+		//FIXME, something strange here, some page needs 2 more tries to guarantee read success.
+		if (ret) {
+			printf("read again:\n");
+			ret = nfc_read_page(buffers, page);
+
+			if (ret) {
+				printf("read again fail \n");
+#if 0
+				nand_bbt_set(ra, addr >> (CONFIG_PAGE_SIZE_BIT + CONFIG_NUMPAGE_PER_BLOCK_BIT), BBT_TAG_BAD);
+				if ((ret != -EUCLEAN) && (ret != -EBADMSG)) {
+					return ret;
+				}
+				else {
+					/* ecc verification fail, but data need to be returned. */
+				}
+#endif
+			}
+			else {
+				printf(" read agian susccess \n");
+			}
+		}
+
+		// oob read
+#if 0
+		if (oob && ooblen > 0) {
+			len = nand_read_oob_buf(ra, oob, ooblen, ops->mode, ops->ooboffs);
+			if (len < 0) {
+				printf("nand_read_oob_buf: fail return %x \n", len);
+				return -EINVAL;
+			}
+
+			oob += len;
+			ops->oobretlen += len;
+			ooblen -= len;
+		}
+#endif
+
+		// data read
+		offs = addr & pagemask;
+		len = min(datalen, CFG_PAGESIZE - offs);
+		if (buf && len > 0) {
+			memcpy(buf, buffers + offs, len); // we can not sure ops->buf wether is DMA-able.
+
+			buf += len;
+			datalen -= len;
+			retlen += len;
+			if (ret)
+				return -1;
+		}
+
+/*                nand_bbt_set(ra, addr >> ra->erase_shift, BBT_TAG_GOOD);*/
+		// address go further to next page, instead of increasing of length of write. This avoids some special cases wrong.
+		addr = (page+1) << CONFIG_PAGE_SIZE_BIT;
+	}
+	if (datalen > (CFG_PAGESIZE+CFG_PAGE_OOBSIZE))
+		printf("\n");
+	return retlen;
+}
+
 int ranand_erase_write(char *buf, unsigned int offs, int count)
 {
 	int blocksize = CFG_BLOCKSIZE;
@@ -860,16 +969,20 @@ int ranand_erase_write(char *buf, unsigned int offs, int count)
 			char *block;
 			unsigned int piece, blockaddr;
 			int piece_size;
+			char *temp;
 
 			block = malloc(blocksize);
 			if (!block)
 				return -1;
+			temp = malloc(blocksize);
+			if (!temp)
+				return -1;
 
 			blockaddr = offs & ~blockmask;
-
 try_next_0:
 			if (ranand_read(block, blockaddr, blocksize) != blocksize) {
 				free(block);
+				free(temp);
 				return -2;
 			}
 
@@ -889,13 +1002,36 @@ try_next_0:
 #endif
 			if (rc != 0) {
 				free(block);
+				free(temp);
 				return -3;
 			}
 			if (ranand_write(block, blockaddr, blocksize) != blocksize) {
 				free(block);
+				free(temp);
 				return -4;
 			}
+#ifdef RALINK_NAND_UPGRADE_CHECK
+			if (ranand_read(temp, blockaddr, blocksize) != blocksize) {
+				free(block);
+				free(temp);
+				return -2;
+			}
 
+
+			if(memcmp(block, temp, blocksize) == 0)
+			{    
+			   // printf("block write ok!\n\r");
+			}
+			else
+			{
+			        printf("block write incorrect!\n\r");
+				free(block);
+			        free(temp);
+			        return -2;
+			}
+#endif
+
+                        free(temp);
 			free(block);
 
 			buf += piece_size;
@@ -904,7 +1040,11 @@ try_next_0:
 		}
 		else {
 			unsigned int aligned_size = blocksize;
+                        char *temp;
 
+			temp = malloc(blocksize);	
+			if (!temp)
+				return -1;
 try_next_1:
 			rc = ranand_erase(offs, aligned_size);
 #ifdef CONFIG_BADBLOCK_CHECK
@@ -917,9 +1057,39 @@ try_next_1:
 			else
 #endif
 			if (rc != 0)
+			{    
+				free(temp);
 				return -1;
+			}
 			if (ranand_write(buf, offs, aligned_size) != aligned_size)
+			{	
+				free(temp);
 				return -1;
+			}
+#ifdef RALINK_NAND_UPGRADE_CHECK
+			//udelay(10);
+			for( i=0; i< (aligned_size/blocksize); i++)
+			{
+				if (ranand_read(temp, offs+(i*blocksize), blocksize) != blocksize)
+				{
+					free(temp);
+					return -2;
+				}
+				if(memcmp(buf+(i*blocksize), temp, blocksize) == 0)
+				{
+					//printf("blocksize write ok i=%d!\n\r", i);
+				}
+				else
+				{
+					printf("blocksize write incorrect block#=%d!\n\r",i);
+					free(temp);
+					return -2;
+				}
+			}
+#endif
+			free(temp);
+			
+			printf(".");
 
 			buf += aligned_size;
 			offs += aligned_size;
@@ -931,7 +1101,7 @@ try_next_1:
 }
 
 
-/*#define NAND_FLASH_DBG_CMD*/
+#define NAND_FLASH_DBG_CMD
 #ifdef NAND_FLASH_DBG_CMD
 int ralink_nand_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
@@ -939,7 +1109,12 @@ int ralink_nand_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	int len, i;
 	u8 *p = NULL;
 
-	if (!strncmp(argv[1], "read", 5)) {
+	if (!strncmp(argv[1], "id", 3)) {
+		u8 id[4];
+		i = nfc_read_raw_data(0x90, 0, 0x410141, id, 4);
+		printf("flash id: %x %x %x %x\n", id[0], id[1], id[2], id[3]);
+	}
+	else if (!strncmp(argv[1], "read", 5)) {
 		addr = (unsigned int)simple_strtoul(argv[2], NULL, 16);
 		len = (int)simple_strtoul(argv[3], NULL, 16);
 		p = (u8 *)malloc(len);
@@ -958,7 +1133,7 @@ int ralink_nand_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	else if (!strncmp(argv[1], "page", 5)) {
 		addr = (unsigned int)simple_strtoul(argv[2], NULL, 16); //page
 		i = nfc_read_page(p, addr);
-		printf("page %x: ", addr);
+		printf("page 0x%x: ", addr);
 		for (i = 0; i < 512; i++)
 			printf("%02x ", p[i]);
 		printf("\noob: ");
@@ -983,6 +1158,9 @@ U_BOOT_CMD(
 	nand,	4,	1, 	ralink_nand_command,
 	"nand	- nand command\n",
 	"nand usage:\n"
+	"  nand id\n"
 	"  nand read <addr> <len>\n"
+	"  nand page <number>\n"
+	"  nand erase <addr> <len>\n"
 );
 #endif

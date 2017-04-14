@@ -33,7 +33,7 @@ stage2.bin:
 	../uboot.bin $@
 
 stage2.o: stage2.bin
-	echo 'char *stage1_ww="ww:' `date` `whoami`'\n";' | $(CC) $(CFLAGS) -c -o $@ -xc -
+	echo 'char *stage1_ww="ww:' `date` `whoami` '";' | $(CC) $(CFLAGS) -c -o $@ -xc -
 	$(OBJCOPY) --add-section .stage2=$< $@
 	$(OBJCOPY) --set-section-flags .stage2=code,contents,alloc,readonly $@
 

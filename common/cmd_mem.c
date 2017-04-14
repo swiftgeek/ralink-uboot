@@ -315,7 +315,6 @@ int do_mem_mwc ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 #endif /* CONFIG_MX_CYCLIC */
 
 #ifdef RT2880_U_BOOT_CMD_OPEN
-
 int do_mem_cmp (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 
@@ -409,12 +408,9 @@ int do_mem_base (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	printf("Base Address: 0x%08lx\n", base_address);
 	return 0;
 }
-#endif
-#ifdef RT2880_U_BOOT_CMD_OPEN
 
 int do_mem_loop (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-#if 1
 	ulong	addr, length, i, junk;
 	int	size;
 	volatile uint	*longp;
@@ -481,9 +477,9 @@ int do_mem_loop (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		while (i-- > 0)
 			junk = *cp++;
 	}
-#endif	
 }
-#endif
+#endif /* RT2880_U_BOOT_CMD_OPEN */
+
 #ifdef CONFIG_LOOPW
 int do_mem_loopw (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
@@ -559,15 +555,13 @@ int do_mem_loopw (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 }
 #endif /* CONFIG_LOOPW */
 
+
+#ifdef RT2880_U_BOOT_CMD_OPEN
 /*
  * Perform a memory test. A more complete alternative test can be
  * configured using CFG_ALT_MEMTEST. The complete test loops until
  * interrupted by ctrl-c or by a failure of one of the sub-tests.
  */
-
-#ifdef RT2880_U_BOOT_CMD_OPEN
-
-
 int do_mem_mtest (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 	vu_long	*addr, *start, *end;
@@ -870,9 +864,8 @@ int do_mem_mtest (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	}
 	return rcode;
 #endif
-
 }
-#endif
+#endif /* RT2880_U_BOOT_CMD_OPEN */
 
 /* Modify memory.
  *
@@ -982,11 +975,10 @@ mod_mem(cmd_tbl_t *cmdtp, int incrflag, int flag, int argc, char *argv[])
 }
 
 #ifndef CONFIG_CRC32_VERIFY
-#ifdef RT2880_U_BOOT_CMD_OPEN
 
+#ifdef RT2880_U_BOOT_CMD_OPEN
 int do_mem_crc (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-#if 1
 	ulong addr, length;
 	ulong crc;
 	ulong *ptr;
@@ -1010,13 +1002,13 @@ int do_mem_crc (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		ptr = (ulong *) simple_strtoul (argv[3], NULL, 16);
 		*ptr = crc;
 	}
-#endif
 	return 0;
 }
-#endif
-#else	/* CONFIG_CRC32_VERIFY */
-#ifdef RT2880_U_BOOT_CMD_OPEN
+#endif /* RT2880_U_BOOT_CMD_OPEN */
 
+#else	/* CONFIG_CRC32_VERIFY */
+
+#if defined(RT2880_U_BOOT_CMD_OPEN) || defined(RALINK_USB)
 int do_mem_crc (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 	ulong addr, length;
@@ -1080,13 +1072,11 @@ U_BOOT_CMD(
 	"[.b, .w, .l] address [# of objects]\n    - memory display\n"
 );
 
-
 U_BOOT_CMD(
 	mm,     2,      1,       do_mem_mm,
 	"mm      - memory modify (auto-incrementing)\n",
 	"[.b, .w, .l] address\n" "    - memory modify, auto increment address\n"
 );
-
 
 U_BOOT_CMD(
 	nm,     2,	    1,     	do_mem_nm,
@@ -1101,16 +1091,15 @@ U_BOOT_CMD(
 );
 
 #ifdef RT2880_U_BOOT_CMD_OPEN
-
 U_BOOT_CMD(
 	cmp,    4,     1,     do_mem_cmp,
 	"cmp     - memory compare\n",
 	"[.b, .w, .l] addr1 addr2 count\n    - compare memory\n"
 );
 #endif
+
 #ifndef CONFIG_CRC32_VERIFY
 #ifdef RT2880_U_BOOT_CMD_OPEN
-
 U_BOOT_CMD(
 	crc32,    4,    1,     do_mem_crc,
 	"crc32   - checksum calculation\n",
@@ -1118,8 +1107,7 @@ U_BOOT_CMD(
 );
 #endif
 #else	/* CONFIG_CRC32_VERIFY */
-#ifdef RT2880_U_BOOT_CMD_OPEN
-
+#if defined(RT2880_U_BOOT_CMD_OPEN) || defined(RALINK_USB)
 U_BOOT_CMD(
 	crc32,    5,    1,     do_mem_crc,
 	"crc32   - checksum calculation\n",
@@ -1128,8 +1116,8 @@ U_BOOT_CMD(
 );
 #endif
 #endif	/* CONFIG_CRC32_VERIFY */
-#ifdef RT2880_U_BOOT_CMD_OPEN
 
+#ifdef RT2880_U_BOOT_CMD_OPEN
 U_BOOT_CMD(
 	base,    2,    1,     do_mem_base,
 	"base    - print or set address offset\n",
@@ -1144,6 +1132,7 @@ U_BOOT_CMD(
 	"    - loop on a set of addresses\n"
 );
 #endif
+
 #ifdef CONFIG_LOOPW
 U_BOOT_CMD(
 	loopw,    4,    1,    do_mem_loopw,
@@ -1152,6 +1141,7 @@ U_BOOT_CMD(
 	"    - loop on a set of addresses\n"
 );
 #endif /* CONFIG_LOOPW */
+
 #ifdef RT2880_U_BOOT_CMD_OPEN
 U_BOOT_CMD(
 	mtest,    4,    1,     do_mem_mtest,
@@ -1160,6 +1150,7 @@ U_BOOT_CMD(
 	"    - simple RAM read/write test\n"
 );
 #endif
+
 #ifdef CONFIG_MX_CYCLIC
 U_BOOT_CMD(
 	mdc,     4,     1,      do_mem_mdc,
@@ -1174,7 +1165,55 @@ U_BOOT_CMD(
 );
 #endif /* CONFIG_MX_CYCLIC */
 
+#ifdef RALINK_SSO_TEST_FUN
+int do_sso_test(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+{
+	ulong	b, e; //begin, end
+	unsigned int *p, pt0, pt1; //pointer, pattern
+
+	if (argc != 6) {
+		printf ("Usage:\n%s\n", cmdtp->usage);
+		return 1;
+	}
+	b = simple_strtoul(argv[2], NULL, 16);
+	e = simple_strtoul(argv[3], NULL, 16);
+	pt1 = simple_strtoul(argv[4], NULL, 16);
+	pt0 = simple_strtoul(argv[5], NULL, 16);
+	printf("start SSO test from 0x%x to 0x%x\n", b, e);
+	printf("pattern 0x%08x %08x\n", pt1, pt0);
+	b |= 0xa0000000;
+	e |= 0xa0000000;
+
+	for (p = (int *)b; (int)p < e; p+=2) {
+		*p = pt0;
+		*(p+1) = pt1;
+	}
+	printf("done writing\n");
+	if (!strncmp(argv[1], "wr", 3)) {
+		for (p = (int *)b; (int)p < e; p+=2) {
+			if (*p != pt0) {
+				printf("stopped. error at %x\n", p);
+				return -1;
+			}
+			if (*(p+1) != pt1) {
+				printf("stopped. error at %x\n", p);
+				return -1;
+			}
+		}
+		printf("done reading successfully\n");
+	}
+	return 0;
+}
+
+U_BOOT_CMD(
+	ssotest,    6,    1,     do_sso_test,
+	"ssotest w|wr <begin> <end> <pattern1> <pattern0>\n",
+	"w  <begin> <end> <p1> <p0> - write only for 63:32= p1 31:0= p0\n"
+	"ssotest wr <begin> <end> <p1> <p0> - read after write for 63:32= p1 31:0= p0\n"
+);
 #endif
+
+#endif /* CONFIG_COMMANDS & CFG_CMD_MEMORY */
 #endif	/* CFG_CMD_MEMORY */
 
 #ifdef CFG_ENV_IS_IN_FLASH

@@ -89,28 +89,30 @@ unsigned long flash_init (void)
 {
 	unsigned long size = 0;
 	int i;
+#if 0
 	u32 regvalue,kk0 = 0xF,kk1 = 0xF ;
 	char *s;
-#if 1
 
 	s = getenv("twe0");
 	//printf("twe0 set to %s\n",s);
 
 	if(s)
-	kk0 = simple_strtoul (s, NULL, 16);
-		
-	
+		kk0 = simple_strtoul (s, NULL, 16);
+
 	s = getenv("toe0");
 	//printf("toe0 set to %s\n",s);
 	
 	if(s)
-	kk1 = simple_strtoul (s, NULL, 16);
-
+		kk1 = simple_strtoul (s, NULL, 16);
+#if defined(RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD)
+	regvalue = *(volatile u_long *)(RALINK_SYSCTL_BASE + 0x0700);
+#else
 	regvalue = *(volatile u_long *)(RALINK_SYSCTL_BASE + 0x0308);
-#ifdef DEBUG
-	printf("\n Default FLASH_CS1_CFG = %08X \n",regvalue);
 #endif
-    regvalue &= ~(0x3 << 26);
+#ifdef DEBUG
+	printf("\n Default FLASH_CFG0 = %08X \n",regvalue);
+#endif
+	regvalue &= ~(0x3 << 26);
 	regvalue |= (0x1 << 26);
 
 	regvalue |= (0x1 << 24);
@@ -121,7 +123,6 @@ unsigned long flash_init (void)
 	regvalue &= ~(0x3 << 16);
 	regvalue |= (0x1 << 16);
 
-
 	regvalue &= ~(0xF << 12);
 	regvalue |= (kk0 << 12);
 
@@ -131,13 +132,22 @@ unsigned long flash_init (void)
 	printf("\n Ready Set Value = 0x%08X\n",regvalue);
 #endif	
 
+#if defined(RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD)
+	*(volatile u_long *)(RALINK_SYSCTL_BASE + 0x0700) = regvalue;
+#else
 	*(volatile u_long *)(RALINK_SYSCTL_BASE + 0x0308) = regvalue;
+#endif
 
-	regvalue = *(volatile u_long *)(RALINK_SYSCTL_BASE + 0x0308);
+#if defined(RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD)
+        regvalue = *(volatile u_long *)(RALINK_SYSCTL_BASE + 0x0700);
+#else
+        regvalue = *(volatile u_long *)(RALINK_SYSCTL_BASE + 0x0308);
+#endif
 #ifdef DEBUG
-	printf("\n Setup FLASH_CS1_CFG = %08X \n",regvalue);
+	printf("\n Setup FLASH_CFG0 = %08X \n",regvalue);
 #endif
 #endif
+
 	/* Init: no FLASHes known */
 	for (i=0; i < CFG_MAX_FLASH_BANKS; ++i) {
 		ulong flashbase = PHYS_FLASH_START;
@@ -277,6 +287,15 @@ static void flash_get_offsets(ulong base, flash_info_t *info)
 		}
 	}
 	else if ((info->flash_id & FLASH_VENDMASK) == FLASH_MAN_MX
+		&& ((info->flash_id & FLASH_TYPEMASK) == MX_ID_29GL128EHT)) {
+		int sect_size;		/* number of bytes/sector */
+
+		sect_size = 0x00020000 * (sizeof(FPW)/2); /* 128K */
+		for (i = 0; i < info->sector_count; i++) {
+		    info->start[i] = base + ( i * sect_size);
+		}
+	}
+	else if ((info->flash_id & FLASH_VENDMASK) == FLASH_MAN_MX
 		&& ((info->flash_id & FLASH_TYPEMASK) == MX_ID_LV160B)) {
 			info->start[0] = base; //16K
 			info->start[1] = info->start[0] + 0x4000; //16K
@@ -284,8 +303,18 @@ static void flash_get_offsets(ulong base, flash_info_t *info)
 			info->start[3] = info->start[2] + 0x2000; //8K
 			info->start[4] = info->start[3] + 0x8000; //32K
 			for (i = 5; i < info->sector_count; i++) {
-			    info->start[i] = info->start[4] + ( (i-4) * 0x00010000);//64K
+				info->start[i] = info->start[4] + ( (i-4) * 0x00010000);//64K
 			}
+	}
+	else if ((info->flash_id & FLASH_VENDMASK) == FLASH_MAN_MX
+		&& ((info->flash_id & FLASH_TYPEMASK) == MX_ID_LV160T)) {
+			for (i = 0; i < info->sector_count - 4; i++) {
+				info->start[i] = base + (i * 0x10000);//64K
+			}
+			info->start[31] = info->start[30] + 0x10000; //32K
+			info->start[32] = info->start[31] + 0x8000; //8K
+			info->start[33] = info->start[32] + 0x2000; //8K
+			info->start[34] = info->start[33] + 0x2000; //16K
 	}
 	else /*  if ((info->flash_id & FLASH_VENDMASK) == FLASH_MAN_AMD
 		&& (info->flash_id & FLASH_TYPEMASK) == EN_ID_29LV641L) */
@@ -579,7 +608,8 @@ ulong flash_get_size(FPWV *addr, flash_info_t *info)
 			break;				/* => 4 or 8 MB		*/
 
 		case (FPW)MX_ID_LV160B:
-			info->flash_id += MX_ID_LV160B;
+		case (FPW)MX_ID_LV160T:
+			info->flash_id += addr[1];
 			info->sector_count = 35;
 			info->size = 0x00200000 * (sizeof(FPW)/2);
 		//	printf("\n MX_ID_LV160B, Size = %08x bytes\n",info->size);
@@ -594,6 +624,12 @@ ulong flash_get_size(FPWV *addr, flash_info_t *info)
 		case (FPW)MX_ID_29LV128DB:
 			info->flash_id += MX_ID_29LV128DB;
 			info->sector_count = 263;
+			info->size = 0x01000000 * (sizeof(FPW)/2);
+			break;
+		
+		case (FPW) MX_ID_29GL128EHT:
+			info->flash_id +=  MX_ID_29GL128EHT;
+			info->sector_count = 128;
 			info->size = 0x01000000 * (sizeof(FPW)/2);
 			break;
 
@@ -673,8 +709,10 @@ int erase_all_chip(flash_info_t *info, int s_first, int s_last)
 	case FLASH_AM640U:
 	case FLASH_MXLV320BT:
 	case FLASH_MXLV160B:
+	case FLASH_MXLV160T:
 	case AMD_ID_LV320B:	
 	case EN_ID_29LV640H:	
+	case MX_ID_29GL128EHT:	
 		break;
 	case FLASH_UNKNOWN:
 	default:
@@ -799,6 +837,7 @@ int	flash_erase(flash_info_t *info, int s_first, int s_last)
 	case FLASH_AM640U:
 	case FLASH_MXLV320BT:
 	case FLASH_MXLV160B:
+	case FLASH_MXLV160T:
 	case AMD_ID_LV320B:
 	case EN_ID_29LV640H:
 	case MX_ID_29LV640DB:
@@ -806,6 +845,7 @@ int	flash_erase(flash_info_t *info, int s_first, int s_last)
 #if defined (RT3052_MP2) && defined (ON_BOARD_32M_FLASH_COMPONENT)
 	case FLASH_S29GL256N:
 #endif
+	case MX_ID_29GL128EHT:	
 		break;
 	case FLASH_UNKNOWN:
 	default:
@@ -1080,33 +1120,20 @@ static int write_word_amd(flash_info_t *info, FPWV *dest, FPW data)
 	int res = 0;	/* result, assume success	*/
 	FPWV *base;		/* first address in flash bank	*/
 
-#if defined (RT2880_ASIC_BOARD) || defined (RT2883_ASIC_BOARD) || defined (RT3052_ASIC_BOARD)
 	start = get_timer(0);
-	
-	while(*dest != 0xFFFF)  {
-	if (get_timer(start) > CFG_FLASH_STATE_DISPLAY_TOUT) 
-	{
-		start = get_timer(0);
-		printf("\n dest[0x%08X]=%04X\n",dest,*dest);
-	}
-		
-	//while ((*dest & data) != data) {
-//	printf("\n *dest = %08X\n",*dest);
-#elif defined (RT3052_FPGA_BOARD)
-	/* 
-	   Must writing with this otherwise Flash write will abnormal 
-	   For RT3052 FPGA 40MHz bus clock 
-	*/
-	while(*dest != 0xFFFF)  {
-#else
-	if ((*dest & data) != data) {
-#endif	
 
+	while(*dest != 0xFFFF)  {
+#ifndef RT3052_FPGA_BOARD
+		if (get_timer(start) > CFG_FLASH_STATE_DISPLAY_TOUT) 
+		{
+			start = get_timer(0);
+			printf("\n dest[0x%08X]=%04X\n",dest,*dest);
+		}
+#endif
+		
 #if 1 //defined (RT2880_ASIC_BOARD) || defined (RT3052_ASIC_BOARD)
 #else
 		printf("Not Erase: address 0x%08x(value=0x%08x)\n", (ulong) dest, *dest);
-		//printf(" .");
-		
 		return (2);
 #endif
 	}

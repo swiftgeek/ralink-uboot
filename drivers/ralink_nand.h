@@ -1,7 +1,8 @@
+#include <linux/mtd/nand.h>
 #include <rt_mmap.h>
 
 #define CONFIG_NOT_SUPPORT_WP //rt3052 has no WP signal for chip.
-#define CONFIG_NOT_SUPPORT_RB
+//#define CONFIG_NOT_SUPPORT_RB
 #define CONFIG_BADBLOCK_CHECK
 
 
@@ -39,7 +40,11 @@
 #define NFC_CMD3	(NFC_BASE + 0x10)
 #define NFC_ADDR	(NFC_BASE + 0x14)
 #define NFC_DATA	(NFC_BASE + 0x18)
+#if defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD)
+#define NFC_ECC		(NFC_BASE + 0x30)
+#else
 #define NFC_ECC		(NFC_BASE + 0x1c)
+#endif
 #define NFC_STATUS	(NFC_BASE + 0x20)
 #define NFC_INT_EN	(NFC_BASE + 0x24)
 #define NFC_INT_ST	(NFC_BASE + 0x28)

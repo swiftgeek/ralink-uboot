@@ -157,8 +157,8 @@ typedef void (interrupt_handler_t)(void *);
 *  kaiker define
 */
 
-#define NUM_RX_DESC 20
-#define NUM_TX_DESC 20
+#define NUM_RX_DESC 24
+#define NUM_TX_DESC 24
 
 
 //   For loopback test

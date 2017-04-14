@@ -32,6 +32,10 @@ COBJS	= main.o cmd_bdinfo.o cmd_boot.o cmd_bootm.o cmd_console.o \
 	cmd_nvedit.o command.o console.o devices.o dlmalloc.o \
 	env_common.o exports.o lists.o  
 
+ifdef RALINK_USB
+COBJS += usb.o usb_storage.o cmd_usb.o cmd_fat.o
+endif
+
 OBJS	= $(AOBJS) $(COBJS)
 
 ifeq ($(CFG_ENV_IS), IN_FLASH)

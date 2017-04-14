@@ -65,6 +65,7 @@ void do_bootm_linux (cmd_tbl_t * cmdtp, int flag, int argc, char *argv[],
 	image_header_t *hdr = &header;
 	char *commandline = getenv ("bootargs");
 	char env_buf[12];
+	int i;
 
 	theKernel =
 		(void (*)(int, char **, char **, int *)) ntohl (hdr->ih_ep);
@@ -209,6 +210,13 @@ void do_bootm_linux (cmd_tbl_t * cmdtp, int flag, int argc, char *argv[],
 
 	sprintf (env_buf, "0x%X", (uint) (gd->bd->bi_flashsize));
 	linux_env_set ("flash_size", env_buf);
+
+	for (i = 1; i < linux_argc; i++)
+		linux_argv[i] = KSEG0ADDR(linux_argv[i]);
+	linux_argv = KSEG0ADDR(linux_argv);
+	for (i = 0; i < linux_env_idx; i++)
+		linux_env[i] = KSEG0ADDR(linux_env[i]);
+	linux_env = KSEG0ADDR(linux_env);
 
 	/* we assume that the kernel is in place */
 	printf ("\nStarting kernel ...\n\n");

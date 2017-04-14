@@ -56,7 +56,18 @@ extern int tsec_initialize(bd_t*, int);
 extern int rt2880_eth_initialize(bd_t *bis);
 
 static struct eth_device *eth_devices, *eth_current;
-static char rt2880_gmac1_mac[]=CONFIG_ETHADDR;
+
+void eth_parse_enetaddr(const char *addr, uchar *enetaddr)
+{
+	char *end;
+	int i;
+
+	for (i = 0; i < 6; ++i) {
+		enetaddr[i] = addr ? simple_strtoul(addr, &end, 16) : 0;
+		if (addr)
+			addr = (*end) ? end + 1 : end;
+	}
+}
 
 struct eth_device *eth_get_dev(void)
 {
@@ -112,9 +123,8 @@ int eth_register(struct eth_device* dev)
 
 int eth_initialize(bd_t *bis)
 {
-	unsigned char enetvar[32], env_enetaddr[6];
-	int i, eth_number = 0;
-	char *tmp, *end;
+	unsigned char rt2880_gmac1_mac[6];
+	int eth_number = 0, regValue=0;
 
 	eth_devices = NULL;
 	eth_current = NULL;
@@ -143,11 +153,9 @@ int eth_initialize(bd_t *bis)
 	plb2800_eth_initialize(bis);
 #endif
 #ifdef SCC_ENET
-kk
 	scc_initialize(bis);
 #endif
 #if defined(FEC_ENET) || defined(CONFIG_ETHER_ON_FCC)
-ll
 	fec_initialize(bis);
 #endif
 #if defined(CONFIG_MPC5xxx_FEC)
@@ -211,50 +219,50 @@ ll
 	} else {
 		struct eth_device *dev = eth_devices;
 		char *ethprime = getenv ("ethprime");
+		unsigned char empty_mac[6]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+
 
 		do {
 			if (eth_number)
 				puts (", ");
-
-			//printf("%s", dev->name);
 
 			if (ethprime && strcmp (dev->name, ethprime) == 0) {
 				eth_current = dev;
 				puts (" [PRIME]");
 			}
 
-			sprintf(enetvar, eth_number ? "eth%daddr" : "ethaddr", eth_number);
-			tmp = getenv (enetvar);
-			//kaiker ++
-			tmp = rt2880_gmac1_mac;
-			//printf("\n enetvar=%s,Eth addr:%s\n ",enetvar,tmp);
-			for (i=0; i<6; i++) {
-				env_enetaddr[i] = tmp ? simple_strtoul(tmp, &end, 16) : 0;
-				//printf("%02X:",env_enetaddr[i]);
-				if (tmp)
-					tmp = (*end) ? end+1 : end;
-			}
-			printf("\n");
-			if (memcmp(env_enetaddr, "\0\0\0\0\0\0", 6)) {
-				if (memcmp(dev->enetaddr, "\0\0\0\0\0\0", 6) &&
-				    memcmp(dev->enetaddr, env_enetaddr, 6))
-				{
-					printf ("\nWarning: %s MAC addresses don't match:\n",
-						dev->name);
-					printf ("Address in SROM is         "
-					       "%02X:%02X:%02X:%02X:%02X:%02X\n",
-					       dev->enetaddr[0], dev->enetaddr[1],
-					       dev->enetaddr[2], dev->enetaddr[3],
-					       dev->enetaddr[4], dev->enetaddr[5]);
-					printf ("Address in environment is  "
-					       "%02X:%02X:%02X:%02X:%02X:%02X\n",
-					       env_enetaddr[0], env_enetaddr[1],
-					       env_enetaddr[2], env_enetaddr[3],
-					       env_enetaddr[4], env_enetaddr[5]);
-				}
+#define GMAC0_OFFSET    0x28
+#define GDMA1_MAC_ADRL  0x2C
+#define GDMA1_MAC_ADRH  0x30
 
-				memcpy(dev->enetaddr, env_enetaddr, 6);
-			}
+			//get Ethernet mac address from flash
+#if defined (CFG_ENV_IS_IN_NAND)
+			ranand_read(rt2880_gmac1_mac, 
+				CFG_FACTORY_ADDR - CFG_FLASH_BASE + GMAC0_OFFSET, 6);
+#elif defined (CFG_ENV_IS_IN_SPI)
+			raspi_read(rt2880_gmac1_mac, 
+				CFG_FACTORY_ADDR - CFG_FLASH_BASE + GMAC0_OFFSET, 6);
+#else //CFG_ENV_IS_IN_FLASH
+			memmove(rt2880_gmac1_mac, 
+				CFG_FACTORY_ADDR + GMAC0_OFFSET, 6);
+#endif
+
+			//if flash is empty, use default mac address
+			if (memcmp(rt2880_gmac1_mac, empty_mac, 6) == 0)
+				eth_parse_enetaddr(CONFIG_ETHADDR, rt2880_gmac1_mac);
+
+			if (memcmp (rt2880_gmac1_mac, "\0\0\0\0\0\0", 6) == 0)
+				eth_parse_enetaddr(CONFIG_ETHADDR, rt2880_gmac1_mac);
+
+			memcpy(dev->enetaddr, rt2880_gmac1_mac, 6);
+
+			//set my mac to gdma register
+			regValue = (rt2880_gmac1_mac[0] << 8)|(rt2880_gmac1_mac[1]);
+			*(volatile u_long *)(dev->iobase + GDMA1_MAC_ADRH)= regValue;
+
+			regValue = (rt2880_gmac1_mac[2] << 24) | (rt2880_gmac1_mac[3] <<16) | 
+			           (rt2880_gmac1_mac[4] << 8) | rt2880_gmac1_mac[5];
+			*(volatile u_long *)(dev->iobase + GDMA1_MAC_ADRL)= regValue;
 
 			eth_number++;
 			dev = dev->next;

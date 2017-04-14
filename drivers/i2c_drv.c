@@ -24,8 +24,6 @@
 
 #if (CONFIG_COMMANDS & CFG_CMD_I2C) 
 
-void rt2880_i2c_toolkit(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);
-
 #define	RT2880_I2C_DUMP_STR		"dump"	/* Dump Content Command Prompt    */
 #define	RT2880_I2C_READ_STR		"read"	/* I2C read operation */
 #define	RT2880_I2C_WRITE_STR		"write"	/* I2C read operation */
@@ -38,16 +36,13 @@ void rt2880_i2c_toolkit(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);
 /* Symbol & Macro Definitions                                          */
 /*---------------------------------------------------------------------*/
 
-#define RT2880_REG(x)						(*((volatile u32 *)(x)))
-#define RT2880_RSTCTRL_REG			(RALINK_SYSCTL_BASE + 0x0034)
+#define RT2880_REG(x)			(*((volatile u32 *)(x)))
 
-#define RSTCTRL_I2C_RESET				(1<<9)
-
-#define RT2880_I2C_REG_BASE			(RALINK_SYSCTL_BASE + 0x0900)
+#define RT2880_I2C_REG_BASE		(RALINK_SYSCTL_BASE + 0x0900)
 #define RT2880_I2C_CONFIG_REG		(RT2880_I2C_REG_BASE+0x00)
 #define RT2880_I2C_CLKDIV_REG		(RT2880_I2C_REG_BASE+0x04)
 #define RT2880_I2C_DEVADDR_REG		(RT2880_I2C_REG_BASE+0x08)
-#define RT2880_I2C_ADDR_REG			(RT2880_I2C_REG_BASE+0x0C)
+#define RT2880_I2C_ADDR_REG		(RT2880_I2C_REG_BASE+0x0C)
 #define RT2880_I2C_DATAOUT_REG	 	(RT2880_I2C_REG_BASE+0x10)
 #define RT2880_I2C_DATAIN_REG  		(RT2880_I2C_REG_BASE+0x14)
 #define RT2880_I2C_STATUS_REG  		(RT2880_I2C_REG_BASE+0x18)
@@ -79,7 +74,7 @@ void rt2880_i2c_toolkit(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[]);
 #define CLKDIV_VALUE	60
 #endif 
 
-#define i2c_busy_loop 	(CLKDIV_VALUE*30)
+#define i2c_busy_loop		(CLKDIV_VALUE*30)
 #define max_ee_busy_loop	(CLKDIV_VALUE*25)
 						  
 
@@ -158,8 +153,12 @@ void i2c_master_init(void);
 void i2c_master_init(void)
 {
 	/* reset i2c block */
-	RT2880_REG(RT2880_RSTCTRL_REG) = RSTCTRL_I2C_RESET;
-	RT2880_REG(RT2880_RSTCTRL_REG) = 0;
+	u32 val = RT2880_REG(RT2880_RSTCTRL_REG);
+	val = val | RALINK_I2C_RST;
+	RT2880_REG(RT2880_RSTCTRL_REG) = val;
+
+	val = val & ~(RALINK_I2C_RST);
+	RT2880_REG(RT2880_RSTCTRL_REG) = val;
 	udelay(500);
 	
 	RT2880_REG(RT2880_I2C_CONFIG_REG) = I2C_CFG_DEFAULT;
@@ -302,7 +301,6 @@ static inline u8 random_read_one_byte(u32 address)
 		RT2880_REG(RT2880_I2C_DEVADDR_REG) = (0xA0|page) >> 1;
 	}
 
-
    	/* dummy write */
 	i2c_write(address, &data, 0);
 	i2c_read(&data, 1);
@@ -352,7 +350,7 @@ static inline void random_write_block(u32 address, u8 *data)
 
 
 	i2c_write(address, data, WRITE_BLOCK);
-	udelay(5000);	/* bobtseng changed */
+	udelay(5000);
 }
 
 static inline void random_write_one_byte(u32 address, u8 *data)
@@ -367,7 +365,7 @@ static inline void random_write_one_byte(u32 address, u8 *data)
 	}
 
 	i2c_write(address, data, 1);
-	udelay(5000);	/* bobtseng changed */
+	udelay(5000);
 }
 
 void i2c_eeprom_write(u32 address, u8 *data, u32 nbytes)
@@ -397,42 +395,55 @@ void i2c_read_config(char *data, unsigned int len)
 	i2c_eeprom_read(0, data, len);
 }
 
-void i2c_eeprom_dump()
+void i2c_eeprom_dump(void)
 {
-	printf("i2c_eeprom_dump()... called!\n");
+	u32 a;
+	u8 v;
+
+	i2c_master_init();
+	for (a = 0; a < 128; a++) {
+		if (a % 16 == 0)
+			printf("%4x : ", a);
+		v = random_read_one_byte(a);
+		printf("%02x ", v);
+		if (a % 16 == 15)
+			printf("\n");
+	}
 }
 
-void rt2880_i2c_toolkit(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+int rt2880_i2c_toolkit(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 	int chk_match, size;
 	ulong addr, value;
 	u16 address;
 
-/* We use the last specified parameters, unless new ones are entered */
+	/* configure i2c to normal mode */
+	RT2880_REG(RT2880_GPIOMODE_REG) &= ~1;
+
 	switch (argc) {
 		case RT2880_I2C_DUMP:
-        		chk_match = strcmp(argv[1], RT2880_I2C_DUMP_STR);
-			if ( chk_match != 0) {
+			chk_match = strcmp(argv[1], RT2880_I2C_DUMP_STR);
+			if (chk_match != 0) {
 				printf("Usage:\n%s\n", cmdtp->usage);
 				return 1;
 			}
 			i2c_eeprom_dump();
-        		break;
+			break;
 		case RT2880_I2C_READ:
-        		chk_match = strcmp(argv[1], RT2880_I2C_READ_STR);
-        		if ( chk_match != 0) {
+			chk_match = strcmp(argv[1], RT2880_I2C_READ_STR);
+			if (chk_match != 0) {
 				printf("Usage:\n%s\n", cmdtp->usage);
-                		return 1;
-        		}
-        		addr = simple_strtoul(argv[2], NULL, 16);
+				return 1;
+			}
+			addr = simple_strtoul(argv[2], NULL, 16);
 			address = addr;
 			i2c_master_init();
 			i2c_eeprom_read(addr, (u8*)&value, 4);
-        		printf("0x%04x : 0x%04x\n", address, value);
-        		break;
+			printf("0x%04x : 0x%04x\n", address, value);
+			break;
 		case RT2880_I2C_WRITE:
 			chk_match = strcmp(argv[1], RT2880_I2C_WRITE_STR);
-			if ( chk_match != 0) {
+			if (chk_match != 0) {
 				printf("Usage:\n%s\n", cmdtp->usage);
 				return 1;
 			}
@@ -447,6 +458,7 @@ void rt2880_i2c_toolkit(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 		default:
 			printf("Usage:\n%s\n use \"help i2ccmd\" to get more detail!\n", cmdtp->usage);
 	}
+	return 0;
 }
 
 U_BOOT_CMD(
@@ -454,10 +466,10 @@ U_BOOT_CMD(
 	"i2ccmd	- read/write data to eeprom via I2C Interface\n",
 	"i2ccmd read/write eeprom_address data(if write)\n"
 	"i2ccmd format:\n"
-	"  i2ccmd read [address in hex]\n"
-	"  i2ccmd write [size] [address] [value]\n"
+	"  i2ccmd read [offset in hex]\n"
+	"  i2ccmd write [size] [offset] [value]\n"
 	"  i2ccmd dump\n"
-	"NOTE -- size is 1, 2, 4 bytes only, address and value are in hex\n"
+	"NOTE -- size is 1, 2, 4 bytes only, offset and value are in hex\n"
 );
 
 #endif

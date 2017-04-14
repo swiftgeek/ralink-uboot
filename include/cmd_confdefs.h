@@ -127,7 +127,6 @@
 			CFG_CMD_ITEST	| \
 			CFG_CMD_JFFS2	| \
 			CFG_CMD_KGDB	| \
-			CFG_CMD_LOADB	| \
 			CFG_CMD_LOADS	| \
 			CFG_CMD_MII	| \
 			CFG_CMD_MMC	| \
@@ -152,6 +151,11 @@
 #define CONFIG_CMD_DFL	(CFG_CMD_ALL & ~CFG_CMD_NONSTD)
 #define CONFIG_COMMANDS (CONFIG_CMD_DFL)
 
+/* USB appliance */
+#ifdef RALINK_USB
+#undef  CONFIG_COMMANDS
+#define CONFIG_COMMANDS (CONFIG_CMD_DFL | CFG_CMD_USB | CFG_CMD_FAT)
+#endif
 
 /*
  * optional BOOTP fields

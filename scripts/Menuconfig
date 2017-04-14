@@ -687,6 +687,16 @@ function l_choice () {
 		
 		shift ; shift
 	done
+
+	if [ "$current" == "NAND" -o "$current" == "SPI" ]; then
+		if [ "$choice" = "ON_BOARD_NOR_FLASH_COMPONENT" ]; then
+			define_bool UBOOT_ROM y
+			define_bool UBOOT_RAM n
+		else
+			define_bool UBOOT_ROM n
+			define_bool UBOOT_RAM y
+		fi
+	fi
 }
 
 #

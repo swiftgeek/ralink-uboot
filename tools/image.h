@@ -126,11 +126,39 @@
 #define IH_COMP_LZMA		3	/* lzma  Compression Used	*/
 
 #define IH_MAGIC	0x27051956	/* Image Magic Number		*/
-#define IH_NMLEN		32	/* Image Name Length		*/
+#define IH_NMLEN		16	/* Image Name Length		*/
 
 /*
  * all data in network byte order (aka natural aka bigendian)
  */
+
+
+typedef struct dram_header {
+	uint8_t		dram_parm;	/* DRAM setting */
+	union{
+	uint8_t		dram_magic;	/* Magic number of DRAM setting (0x5a) */
+	struct {
+		uint8_t	cpu_pll_magic_l:4;	
+		uint8_t	dram_magic_h:4;
+		}u;
+	};
+	uint16_t	cpu_pll_cfg;
+	uint16_t	magic_lh;       /* low half word of magic number 0x5244 */
+	uint16_t	magic_hh;       /* high half word of magic number 0x4D41 */
+	union {
+	    struct {
+		uint8_t syscfg1;
+		uint8_t ddr_cfg3;
+		uint16_t resv1;
+		uint32_t resv2;
+	    }ddr;
+	    
+	    struct {
+		uint32_t sdram_cfg0;
+		uint32_t sdram_cfg1;
+	    }sdr;
+	};
+} dram_header_t;
 
 typedef struct image_header {
 	uint32_t	ih_magic;	/* Image Header Magic Number	*/
@@ -145,6 +173,7 @@ typedef struct image_header {
 	uint8_t		ih_type;	/* Image Type			*/
 	uint8_t		ih_comp;	/* Compression Type		*/
 	uint8_t		ih_name[IH_NMLEN];	/* Image Name		*/
+	dram_header_t   ih_dram;
 } image_header_t;
 
 

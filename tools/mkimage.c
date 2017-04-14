@@ -59,6 +59,7 @@ typedef		unsigned int	uint32_t;
 #endif
 
 #include <image.h>
+#include "../autoconf.h"
 
 extern int errno;
 
@@ -180,6 +181,14 @@ main (int argc, char **argv)
 	struct stat sbuf;
 	unsigned char *ptr;
 	char *name = "";
+	char *dram_name = "";
+	uint32_t dram_type;
+	uint32_t dram_total_width;
+	uint32_t dram_size;
+	uint32_t dram_width;
+	uint32_t dram_cfg0;
+	uint32_t dram_cfg1;
+	uint16_t cpu_pll;
 
 	cmdname = *argv;
 
@@ -241,6 +250,98 @@ main (int argc, char **argv)
 				}
 				eflag = 1;
 				goto NXTARG;
+			case 'r':
+				if (--argc <= 0)
+					usage ();
+				dram_name=*++argv;
+				if(strncasecmp(dram_name,"sdr",3)==0) {
+				    dram_type=0;
+				}else if(strncasecmp(dram_name,"ddr",3)==0) {
+				    dram_type=1;
+				}else {
+				    if (*ptr) {
+					fprintf (stderr,
+						"%s: invalid dram type %s\n",
+						cmdname, *argv);
+					exit (EXIT_FAILURE);
+				    }
+				}
+				goto NXTARG;
+			case 's':
+				if (--argc <= 0)
+					usage ();
+				dram_total_width = strtoul (*++argv, (char **)&ptr, 10);
+				switch(dram_total_width) {
+				case 16:
+				    dram_total_width=0;
+				    break;
+				case 32:
+				    dram_total_width=1;
+				    break;
+				default:
+				    if (*ptr) {
+					fprintf (stderr,
+						"%s: invalid dram total width %s\n",
+						cmdname, *argv);
+					exit (EXIT_FAILURE);
+				    }
+				}
+				goto NXTARG;
+			case 't':
+				if (--argc <= 0)
+					usage ();
+				dram_size = strtoul (*++argv, (char **)&ptr, 10);
+				switch(dram_size) {
+				case 2:
+				    dram_size=0;
+				    break;
+				case 8:
+				    dram_size=1;
+				    break;
+				case 16:
+				    dram_size=2;
+				    break;
+				case 32:
+				    dram_size=3;
+				    break;
+				case 64:
+				    dram_size=4;
+				    break;
+				case 128:
+				    dram_size=5;
+				    break;
+				case 256:
+				    dram_size=6;
+				    break;
+				default:
+				    if (*ptr) {
+					fprintf (stderr,
+						"%s: invalid dram size%s\n",
+						cmdname, *argv);
+					exit (EXIT_FAILURE);
+				    }
+				}
+				goto NXTARG;
+			case 'u':
+				if (--argc <= 0)
+					usage ();
+				dram_width = strtoul (*++argv, (char **)&ptr, 10);
+				switch(dram_width) {
+				case 16:
+				    dram_width=0;
+				    break;
+				case 32:
+				    dram_width=1;
+				    break;
+				default:
+				    if (*ptr) {
+					fprintf (stderr,
+						"%s: invalid dram width %s\n",
+						cmdname, *argv);
+					exit (EXIT_FAILURE);
+				    }
+				}
+				goto NXTARG;
 			case 'n':
 				if (--argc <= 0)
 					usage ();
@@ -252,6 +353,33 @@ main (int argc, char **argv)
 			case 'x':
 				xflag++;
 				break;
+			case 'y':
+				if (--argc <= 0)
+					usage ();
+				dram_cfg0 = strtoul (*++argv, (char **)&ptr, 16);
+				if (*ptr) {
+				    fprintf (stderr,
+					    "%s: invalid dram parameter 0 %s\n",
+					    cmdname, *argv);
+				    exit (EXIT_FAILURE);
+				}
+				goto NXTARG;
+			case 'z':
+				if (--argc <= 0)
+					usage ();
+				dram_cfg1 = strtoul (*++argv, (char **)&ptr, 16);
+				if (*ptr) {
+				    fprintf (stderr,
+					    "%s: invalid dram parameter 1 %s\n",
+					    cmdname, *argv);
+				    exit (EXIT_FAILURE);
+				}
+				goto NXTARG;
+			case 'w':
+				if (--argc <= 0)
+					usage ();
+				cpu_pll = strtoul (*++argv, (char **)&ptr, 16);
+				goto NXTARG;
 			default:
 				usage ();
 			}
@@ -480,6 +608,49 @@ NXTARG:		;
 
 	strncpy((char *)hdr->ih_name, name, IH_NMLEN);
 
+	//if dram_size=2M, that means dram parameters is invalid
+	if(dram_size==0) { 
+	    hdr->ih_dram.dram_magic=0;
+	} else {
+#if defined(RT5350_ASIC_BOARD) || defined(RT5350_FPGA_BOARD)
+	    hdr->ih_dram.u.dram_magic_h=0x5;
+#elif defined(RT3352_ASIC_BOARD) || defined(RT3352_FPGA_BOARD)
+	    hdr->ih_dram.dram_magic=0x5A;
+#endif
+	}
+
+	hdr->ih_dram.dram_parm = (dram_type<<5 | dram_total_width<<4 | dram_size<<1 | dram_width);
+
+	if(dram_cfg0!=0xFF && dram_cfg1!=0xFF) {
+	    hdr->ih_dram.magic_lh=0x5244;
+	    hdr->ih_dram.magic_hh=0x4D41;
+	} else {
+	    hdr->ih_dram.magic_lh=0;
+	    hdr->ih_dram.magic_hh=0;
+	    dram_cfg0=0;
+	    dram_cfg1=0;
+	}
+
+#if defined (CPU_PLL_PARAMETERS)
+	if(cpu_pll==0) {
+		hdr->ih_dram.u.cpu_pll_magic_l=0;
+		hdr->ih_dram.cpu_pll_cfg = 0;
+	}else{
+		hdr->ih_dram.u.cpu_pll_magic_l=0xa;
+		hdr->ih_dram.cpu_pll_cfg = cpu_pll;
+	}
+#endif
+
+#if defined (DRAM_PARAMETERS)
+	if(dram_type==0) {//SDR
+	    hdr->ih_dram.sdr.sdram_cfg0 = dram_cfg0;
+	    hdr->ih_dram.sdr.sdram_cfg1 = dram_cfg1;
+	}else { //DDR
+	    hdr->ih_dram.ddr.syscfg1= (dram_cfg0 & 0x3F);
+	    hdr->ih_dram.ddr.ddr_cfg3= (dram_cfg1 & 0x3);
+	}
+#endif
+
 	checksum = crc32(0,(const char *)hdr,sizeof(image_header_t));
 
 	hdr->ih_hcrc = htonl(checksum);
@@ -601,8 +772,14 @@ usage ()
 			 "          -a ==> set load address to 'addr' (hex)\n"
 			 "          -e ==> set entry point to 'ep' (hex)\n"
 			 "          -n ==> set image name to 'name'\n"
+			 "          -r ==> set dram type (sdr/ddr)\n"
+			 "          -s ==> set dram total width (16/32)\n"
+			 "          -t ==> set dram size (2/8/16/32/64/128/256MB)\n"
+			 "          -u ==> set dram width (16/32)\n"
 			 "          -d ==> use image data from 'datafile'\n"
 			 "          -x ==> set XIP (execute in place)\n"
+			 "          -y ==> set dram parameter 0\n"
+			 "          -z ==> set dram parameter 1\n"
 		);
 	exit (EXIT_FAILURE);
 }
@@ -623,6 +800,7 @@ print_header (image_header_t *hdr)
 		size, (double)size / 1.024e3, (double)size / 1.048576e6 );
 	printf ("Load Address: 0x%08X\n", ntohl(hdr->ih_load));
 	printf ("Entry Point:  0x%08X\n", ntohl(hdr->ih_ep));
+	printf ("DRAM Parameter: %x (Parm0=%x Parm1=%x)\n", hdr->ih_dram.dram_parm, hdr->ih_dram.sdr.sdram_cfg0, hdr->ih_dram.sdr.sdram_cfg1);
 
 	if (hdr->ih_type == IH_TYPE_MULTI || hdr->ih_type == IH_TYPE_SCRIPT) {
 		int i, ptrs;

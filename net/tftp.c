@@ -43,6 +43,7 @@ static ulong	TftpLastBlock;		/* last packet sequence number received */
 static ulong	TftpBlockWrap;		/* count of sequence number wraparounds */
 static ulong	TftpBlockWrapOffset;	/* memory offset due to wrapping	*/
 static int	TftpState;
+int		TftpStarted;		/* To know ARP reply requested by TFTP  */
 
 #define STATE_RRQ	1
 #define STATE_DATA	2
@@ -95,19 +96,18 @@ store_block (unsigned block, uchar * src, unsigned len)
 		NetBootFileXferSize = newsize;
 }
 
-static void TftpSend (void);
+void TftpSend (void);
 static void TftpTimeout (void);
 
 /**********************************************************************/
 
-static void
+void
 TftpSend (void)
 {
 	volatile uchar *	pkt;
 	volatile uchar *	xp;
 	int			len = 0;
 	volatile ushort *s;
-	//static int ttc=0;
 	/*
 	 *	We will always be sending some sort of packet, so
 	 *	cobble together the packet headers now.
@@ -251,7 +251,7 @@ TftpHandler (uchar * pkt, unsigned dest, unsigned src, unsigned len)
 			TftpLastBlock = 0;
 			TftpBlockWrap = 0;
 			TftpBlockWrapOffset = 0;
-			printf("\n first block received  \n");
+			//printf("\n first block received  \n");
 			if (TftpBlock != 1) {	/* Assertion */
 				printf ("\nTFTP error: "
 					"First block is not block 1 (%ld)\n"
@@ -321,24 +321,11 @@ TftpTimeout (void)
 void
 TftpStart (void)
 {
-	//kaiker
- #ifdef CFG_RUN_CODE_IN_RAM	
- //   NetServerIP = string_to_ip("192.168.3.56");
- //  NetOurIP = string_to_ip("192.168.3.240");
- //  sprintf(default_filename, "%s","test.bin");
- #endif  
+	TftpStarted=1;
+
 	if (BootFile[0] == '\0') {
-#if 0
-		IPaddr_t OurIP = ntohl(NetOurIP);
-		sprintf(default_filename, "%02lX%02lX%02lX%02lX.img",
-			OurIP & 0xFF,
-			(OurIP >>  8) & 0xFF,
-			(OurIP >> 16) & 0xFF,
-			(OurIP >> 24) & 0xFF	);
-#else
-        sprintf(default_filename, "%s","test.bin");
-#endif
-		tftp_filename = default_filename;
+	    sprintf(default_filename, "%s","test.bin");
+	    tftp_filename = default_filename;
 
 		printf ("*** Warning: no boot file name; using '%s'\n",
 			tftp_filename);
