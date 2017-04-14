@@ -24,9 +24,9 @@ v=$(shell \
 $(AS) --version|grep "GNU assembler"|awk -F . '{print $$2}')
 MIPSFLAGS=$(shell \
 if [ "$v" -lt "14" ]; then \
-	echo "-mcpu=4kc -mabicalls"; \
+	echo "-mabicalls"; \
 else \
-	echo "-march=4kc -mtune=4kc -mabicalls"; \
+	echo "-mabicalls"; \
 fi)
 # 	Dennis Lee, Big Endian need -EB otherwise remove -EB
 #	echo "-mcpu=4kc -EB -mabicalls"; 

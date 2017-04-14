@@ -190,7 +190,7 @@ main (int argc, char **argv)
 	uint32_t dram_cfg0;
 	uint32_t dram_cfg1;
 	uint16_t cpu_pll;
-
+	uint32_t stage1_start, bootloader_start;
 	cmdname = *argv;
 
 	addr = ep = 0;
@@ -357,6 +357,9 @@ main (int argc, char **argv)
 			case 'y':
 				if (--argc <= 0)
 					usage ();
+#if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+				stage1_start = strtoul (*++argv, (char **)&ptr, 16);
+#else					
 				dram_cfg0 = strtoul (*++argv, (char **)&ptr, 16);
 				if (*ptr) {
 				    fprintf (stderr,
@@ -364,10 +367,14 @@ main (int argc, char **argv)
 					    cmdname, *argv);
 				    exit (EXIT_FAILURE);
 				}
+#endif
 				goto NXTARG;
 			case 'z':
 				if (--argc <= 0)
 					usage ();
+#if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+				bootloader_start = strtoul (*++argv, (char **)&ptr, 16);
+#else				
 				dram_cfg1 = strtoul (*++argv, (char **)&ptr, 16);
 				if (*ptr) {
 				    fprintf (stderr,
@@ -375,6 +382,7 @@ main (int argc, char **argv)
 					    cmdname, *argv);
 				    exit (EXIT_FAILURE);
 				}
+#endif
 				goto NXTARG;
 			case 'w':
 				if (--argc <= 0)
@@ -609,6 +617,26 @@ NXTARG:		;
 
 	strncpy((char *)hdr->ih_name, name, IH_NMLEN);
 
+	
+#if defined (MT7621_ASIC_BOARD) || defined(MT7621_FPGA_BOARD)
+#if defined (ON_BOARD_NAND_FLASH_COMPONENT)
+	//memset(&(hdr->ih_nand), 0, sizeof(nand_header_t));	
+	printf("DDRCal Code Offset 	: 0x%08X\n",stage1_start);
+	printf("Uboot Offset 		: 0x%08X\n",bootloader_start);
+	hdr->ih_nand.ih_stage_offset = htonl(stage1_start);
+	hdr->ih_nand.ih_bootloader_offset = htonl(bootloader_start);
+#if defined (ON_BOARD_NAND_HEADER)
+	hdr->ih_nand.nand_info_1.pagesize = NAND_PAGESIZE_INDEX;
+	hdr->ih_nand.nand_info_1.addr_cycle = NAND_ADDRLEN_INDEX;
+	hdr->ih_nand.nand_info_1.spare_size = NAND_SPARESIZE_INDEX;
+	hdr->ih_nand.nand_info_1.total_size = NAND_TOTALSIZE_INDEX;
+	hdr->ih_nand.nand_info_1.block_size = NAND_BLOCKSIZE_INDEX;
+	hdr->ih_nand.nand_info_1.magic_id = 0xDA0;
+	hdr->ih_nand.nand_info_1_data = htonl((unsigned int)(hdr->ih_nand.nand_info_1_data));	
+	hdr->ih_nand.nand_ac_timing = htonl(NAND_ACCTIME);	
+#endif
+#endif	
+#else
 	//if dram_size=2M, that means dram parameters is invalid
 	if(dram_size==0) { 
 	    hdr->ih_dram.dram_magic=0;
@@ -651,7 +679,7 @@ NXTARG:		;
 #if defined (CPU_PLL_PARAMETERS)
 #if defined (RT6855A_ASIC_BOARD) || defined(RT6855A_FPGA_BOARD)
 #endif
-#if defined (MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD)
+#if defined (MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD) || defined (MT7628_ASIC_BOARD) || defined(MT7628_FPGA_BOARD)
 #if defined (CPLL_FROM_480MHZ)
 	cpu_pll = ntohs(1<<11);
 #elif defined (CPLL_FROM_XTAL)
@@ -682,7 +710,8 @@ NXTARG:		;
 	    hdr->ih_dram.ddr.ddr_cfg3= (dram_cfg1 & 0x3);
 	}
 #elif defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD) ||\
-	defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
+	defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD) ||\
+        defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 	if(dram_type==0) {//SDR
 	    hdr->ih_dram.sdr.sdram_cfg0 = ntohl(dram_cfg0);
 	    hdr->ih_dram.sdr.sdram_cfg1 = ntohl(dram_cfg1);
@@ -695,7 +724,7 @@ NXTARG:		;
 #endif
 			hdr->ih_dram.ddr.ddr_cfg0 = ntohl(dram_cfg0);
 			hdr->ih_dram.ddr.ddr_cfg1 = ntohl(dram_cfg1);
-#if defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
+#if defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD) || (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 			hdr->ih_dram.ddr_self_refresh = ntohs((((DDR_ODT_SRC&0x0F)<<8)|(DDR_ODT_OFF_DLY&0x0F)<<4)|\
 											(DDR_ODT_ON_DLY&0x0F)); 
 			hdr->ih_dram.syscfg1_ddrcfg3_odt = ntohs((SYSCFG1_ODT&0x0FFFC)|(DDRCFG3_ODT&0x03));   
@@ -708,7 +737,13 @@ NXTARG:		;
 #error "DRAM config in imageheader is not supported"	
 #endif	
 #endif
+#endif /* ! MT7621_ASIC_BOARD or MT7621_FPGA_BOARD */
 
+#if (defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD))
+	//crc((const char *)hdr, &(hdr->ih_nand.crc), sizeof(image_header_t));	
+    crc((const char *)hdr, &checksum, sizeof(image_header_t));
+    hdr->ih_nand.crc = htonl(checksum);
+#endif	
 	checksum = crc32(0,(const char *)hdr,sizeof(image_header_t));
 
 	hdr->ih_hcrc = htonl(checksum);
@@ -858,8 +893,10 @@ print_header (image_header_t *hdr)
 		size, (double)size / 1.024e3, (double)size / 1.048576e6 );
 	printf ("Load Address: 0x%08X\n", ntohl(hdr->ih_load));
 	printf ("Entry Point:  0x%08X\n", ntohl(hdr->ih_ep));
+#if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+#else	
 	printf ("DRAM Parameter: %x (Parm0=%x Parm1=%x)\n", hdr->ih_dram.dram_parm, hdr->ih_dram.sdr.sdram_cfg0, hdr->ih_dram.sdr.sdram_cfg1);
-
+#endif
 	if (hdr->ih_type == IH_TYPE_MULTI || hdr->ih_type == IH_TYPE_SCRIPT) {
 		int i, ptrs;
 		uint32_t pos;

@@ -28,6 +28,12 @@ LIB	= lib$(ARCH).a
 AOBJS	=
 
 COBJS	= board.o time.o mips_linux.o
+ifeq ($(MT7621_MP), y)
+COBJS	+= ashldi3.o ashrdi3.o lshrdi3.o
+ifeq ($(MT7621_FPGA_BOARD), y)
+COBJS	+= ddr_init.o
+endif
+endif
 
 OBJS	= $(AOBJS) $(COBJS)
 

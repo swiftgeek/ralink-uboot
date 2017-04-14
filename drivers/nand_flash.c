@@ -3,6 +3,20 @@
 #include <malloc.h>
 #include <configs/rt2880.h>
 #include "ralink_nand.h"
+
+//#define MTK_NAND_BMT
+
+
+#ifdef MTK_NAND_BMT
+#define __UBOOT_NAND__
+#include "bmt.h"
+// BMT can not apply on Uboot, because Rom does not support BMT,
+// if Page size is 2048, there are 2 blocks for Uboot, if page size is 512, there are 3 blocks for Uboot
+#define BMT_APPLY_START_OFFSET (is_nand_page_2048? (2*CFG_BLOCKSIZE):(3*CFG_BLOCKSIZE))
+#define BMT_POOL_SIZE 80
+static bmt_struct *g_bmt;
+
+#endif
 		       
 #define ra_inl(addr)  (*(volatile u32 *)(addr))
 #define ra_outl(addr, value)  (*(volatile u32 *)(addr) = (value))
@@ -15,6 +29,7 @@
 #define READ_STATUS_RETRY	1000
 #define CLEAR_INT_STATUS()	ra_outl(NFC_INT_ST, ra_inl(NFC_INT_ST))
 #define NFC_TRANS_DONE()	(ra_inl(NFC_INT_ST) & INT_ST_ND_DONE)
+#define BLOCK_ALIGNED(a) ((a) & (CFG_BLOCKSIZE - 1))
 
 int nand_addrlen = 3;
 int is_nand_page_2048 = 0;
@@ -22,8 +37,13 @@ int is_nand_page_2048 = 0;
 const unsigned int nand_size_map[2][3] = {{25, 30, 30}, {20, 27, 30}};
 
 static int nfc_wait_ready(int snooze_ms);
-int nfc_read_page(char *buf, int page);
 
+#ifdef MTK_NAND_BMT
+int ranand_erase_bmt(unsigned int offs, int len);
+int ranand_write_bmt(char *buf, unsigned int to, int datalen);
+int ranand_read_bmt(char *buf, unsigned int from, int datalen);
+int ranand_erase_write_bmt(char *buf, unsigned int offs, int count);
+#endif
 /**
  * reset nand chip
  */
@@ -158,6 +178,71 @@ static int nfc_device_ready(void)
 }
 #endif
 
+// 1-bit error detection
+static int one_bit_correction(char *ecc1, char *ecc2, int *bytes, int *bits)
+{
+	char *p, nibble, crumb;
+	int i, xor, iecc1 = 0, iecc2 = 0;
+
+	printf("correction : %x %x %x\n", ecc1[0], ecc1[1], ecc1[2]);
+	printf("correction : %x %x %x\n", ecc2[0], ecc2[1], ecc2[2]);
+
+	p = (char *)ecc1;
+	for (i = 0; i < CONFIG_ECC_BYTES; i++)
+	{
+		nibble = *(p+i) & 0xf;
+		if ((nibble != 0x0) && (nibble != 0xf) && (nibble != 0x3) && (nibble != 0xc) &&
+				(nibble != 0x5) && (nibble != 0xa) && (nibble != 0x6) && (nibble != 0x9))
+			return -1;
+		nibble = ((*(p+i)) >> 4) & 0xf;
+		if ((nibble != 0x0) && (nibble != 0xf) && (nibble != 0x3) && (nibble != 0xc) &&
+				(nibble != 0x5) && (nibble != 0xa) && (nibble != 0x6) && (nibble != 0x9))
+			return -1;
+	}
+
+	p = (char *)ecc2;
+	for (i = 0; i < CONFIG_ECC_BYTES; i++)
+	{
+		nibble = *(p+i) & 0xf;
+		if ((nibble != 0x0) && (nibble != 0xf) && (nibble != 0x3) && (nibble != 0xc) &&
+				        (nibble != 0x5) && (nibble != 0xa) && (nibble != 0x6) && (nibble != 0x9))
+			return -1;
+		nibble = ((*(p+i)) >> 4) & 0xf;
+		if ((nibble != 0x0) && (nibble != 0xf) && (nibble != 0x3) && (nibble != 0xc) &&
+				        (nibble != 0x5) && (nibble != 0xa) && (nibble != 0x6) && (nibble != 0x9))
+			return -1;
+	}
+
+	memcpy(&iecc1, ecc1, 3);
+	memcpy(&iecc2, ecc2, 3);
+
+	xor = iecc1 ^ iecc2;
+	printf("xor = %x (%x %x)\n", xor, iecc1, iecc2);
+
+	*bytes = 0;
+	for (i = 0; i < 9; i++)
+	{
+		crumb = (xor >> (2*i)) & 0x3;
+		if ((crumb == 0x0) || (crumb == 0x3))
+			return -1;
+		if (crumb == 0x2)
+			*bytes += (1 << i);
+	}
+
+	*bits = 0;
+	for (i = 0; i < 3; i++)
+	{
+		crumb = (xor >> (18 + 2*i)) & 0x3;
+		if ((crumb == 0x0) || (crumb == 0x3))
+			return -1;
+		if (crumb == 0x2)
+			*bits += (1 << i);
+	}
+
+	return 0;
+}
+
+
 unsigned long ranand_init(void)
 {
 	int reg, chip_mode;
@@ -207,6 +292,19 @@ unsigned long ranand_init(void)
 
 	if (nfc_all_reset() != 0)
 		return -1;
+
+#if defined(MTK_NAND_BMT)
+    if (!g_bmt)
+    {
+        if ( !(g_bmt = init_bmt(BMT_POOL_SIZE)) )
+        {
+            printf("Error: init bmt failed\n");
+            // ASSERT(0);
+            return 0;
+        }
+    }
+#endif	
+
 	return CFG_CHIPSIZE;
 }
 
@@ -386,7 +484,7 @@ static int nfc_wait_ready(int snooze_ms)
  * return 0: erase OK
  * return -EIO: fail 
  */
-static int nfc_erase_block(int row_addr)
+int nfc_erase_block(int row_addr)
 {
 	unsigned long cmd1, cmd2, bus_addr, conf;
 	char status;
@@ -440,7 +538,11 @@ static inline int nfc_read_raw_data(int cmd1, int cmd2, int bus_addr, int bus_ad
 		return NAND_STATUS_FAIL;
 	}
 
-	ret = nfc_wait_ready(3); //wait ready 
+	ret = nfc_wait_ready(3); //wait ready
+	/* to prevent the DATA FIFO 's old data from next operation */
+	ra_outl(NFC_CTRL, ra_inl(NFC_CTRL) | 0x02); //clear data buffer
+	ra_outl(NFC_CTRL, ra_inl(NFC_CTRL) & ~0x02); //clear data buffer
+
 	if (ret & NAND_STATUS_FAIL) {
 		printf("%s: fail\n", __func__);
 		return NAND_STATUS_FAIL;
@@ -473,6 +575,10 @@ static inline int nfc_write_raw_data(int cmd1, int cmd3, int bus_addr, int bus_a
 	}
 
 	ret = nfc_wait_ready(1); //write wait 1ms
+	/* to prevent the DATA FIFO 's old data from next operation */
+	ra_outl(NFC_CTRL, ra_inl(NFC_CTRL) | 0x02); //clear data buffer
+	ra_outl(NFC_CTRL, ra_inl(NFC_CTRL) & ~0x02); //clear data buffer
+
 	if (ret & NAND_STATUS_FAIL) {
 		printf("%s: fail\n", __func__);
 		return NAND_STATUS_FAIL;
@@ -640,6 +746,7 @@ ecc_check:
 	else {
 		int ecc2, ecc3, ecc4, qsz;
 		char *e2, *e3, *e4;
+		int correction_flag = 0;
 		ecc = ra_inl(NFC_ECC_P1);
 		ecc2 = ra_inl(NFC_ECC_P2);
 		ecc3 = ra_inl(NFC_ECC_P3);
@@ -672,27 +779,99 @@ ecc_check:
 				printf("%s mode:%s, invalid ecc, page: %x read:%x %x %x, ecc:%x \n",
 						__func__, (mode == FL_READING)?"read":"write", page,
 						*(p+ CONFIG_ECC_OFFSET), *(p+ CONFIG_ECC_OFFSET+1), *(p+ CONFIG_ECC_OFFSET +2), ecc);
-				return -1;
+				correction_flag |= 0x1;
 			}
 			if (*(p + eccpos + qsz) != *(e2 + i)) {
 				printf("%s mode:%s, invalid ecc2, page: %x read:%x %x %x, ecc2:%x \n",
 						__func__, (mode == FL_READING)?"read":"write", page,
 						*(p+CONFIG_ECC_OFFSET+qsz), *(p+ CONFIG_ECC_OFFSET+1+qsz), *(p+ CONFIG_ECC_OFFSET+2+qsz), ecc2);
-				return -1;
+				correction_flag |= 0x2;
 			}
 			if (*(p + eccpos + qsz*2) != *(e3 + i)) {
 				printf("%s mode:%s, invalid ecc3, page: %x read:%x %x %x, ecc3:%x \n",
 						__func__, (mode == FL_READING)?"read":"write", page,
 						*(p+CONFIG_ECC_OFFSET+qsz*2), *(p+ CONFIG_ECC_OFFSET+1+qsz*2), *(p+ CONFIG_ECC_OFFSET+2+qsz*2), ecc3);
-				return -1;
+				correction_flag |= 0x4;
 			}
 			if (*(p + eccpos + qsz*3) != *(e4 + i)) {
 				printf("%s mode:%s, invalid ecc4, page: %x read:%x %x %x, ecc4:%x \n",
 						__func__, (mode == FL_READING)?"read":"write", page,
 						*(p+CONFIG_ECC_OFFSET+qsz*3), *(p+ CONFIG_ECC_OFFSET+1+qsz*3), *(p+ CONFIG_ECC_OFFSET+2+qsz*3), ecc4);
-				return -1;
+				correction_flag |= 0x8;
 			}
 		}
+
+		if (correction_flag)
+		{
+			printf("trying to do correction!\n");
+			if (correction_flag & 0x1)
+			{
+				int bytes, bits;
+				char *pBuf = p - CFG_PAGESIZE;
+
+				if (one_bit_correction(p + CONFIG_ECC_OFFSET, e, &bytes, &bits) == 0)
+				{
+					pBuf[bytes] = pBuf[bytes] ^ (1 << bits);
+					printf("1. correct byte %d, bit %d!\n", bytes, bits);
+				}
+				else
+				{
+					printf("failed to correct!\n");
+					return -1;
+				}
+			}
+
+			if (correction_flag & 0x2)
+			{
+				int bytes, bits;
+				char *pBuf = (p - CFG_PAGESIZE) + CFG_PAGESIZE/4;
+
+				if (one_bit_correction((p + CONFIG_ECC_OFFSET + qsz), e2, &bytes, &bits) == 0)
+				{
+					pBuf[bytes] = pBuf[bytes] ^ (1 << bits);
+					printf("2. correct byte %d, bit %d!\n", bytes, bits);
+				}
+				else
+				{
+					printf("failed to correct!\n");
+					return -1;
+				}
+			}
+			if (correction_flag & 0x4)
+			{
+				int bytes, bits;
+				char *pBuf = (p - CFG_PAGESIZE) + CFG_PAGESIZE/2;
+
+				if (one_bit_correction((p + CONFIG_ECC_OFFSET + qsz * 2), e3, &bytes, &bits) == 0)
+				{
+					pBuf[bytes] = pBuf[bytes] ^ (1 << bits);
+					printf("3. correct byte %d, bit %d!\n", bytes, bits);
+				}
+				else
+				{
+					printf("failed to correct!\n");
+					return -1;
+				}
+			}
+			if (correction_flag & 0x8)
+			{
+				int bytes, bits;
+				char *pBuf = (p - CFG_PAGESIZE) + CFG_PAGESIZE*3/4;
+
+				if (one_bit_correction((p + CONFIG_ECC_OFFSET + qsz * 3), e4, &bytes, &bits) == 0)
+				{
+					pBuf[bytes] = pBuf[bytes] ^ (1 << bits);
+					printf("4. correct byte %d, bit %d!\n", bytes, bits);
+				}
+				else
+				{
+					printf("failed to correct!\n");
+					return -1;
+				}
+			}
+		}
+
+
 	}
 #endif	
 	return 0;
@@ -775,6 +954,7 @@ int nfc_write_page(char *buf, int page)
 	int size;
 	char status;
 
+
 	page = page & (CFG_CHIPSIZE-1); //chip boundary
 	size = CFG_PAGESIZE + CFG_PAGE_OOBSIZE; //add oobsize
 	bus_addr = (page << (CFG_COLUMN_ADDR_CYCLE*8)); //write_page always write from offset 0.
@@ -792,6 +972,13 @@ int nfc_write_page(char *buf, int page)
 	}
 	conf |= (1<<3); //enable ecc
 
+#ifdef MTK_NAND_BMT_DEBUG
+	if ((bus_addr == 0xe8130000) || (bus_addr == 0xe9910000) || (bus_addr == 0xe9f20000) || (bus_addr == 0xec450000)) 
+	{
+		printf("hmm... create a bad block %x\n", bus_addr);
+		*(buf+CFG_PAGESIZE+CONFIG_BAD_BLOCK_POS) = 0x11;
+	}
+#endif
 #if 0 //winfred testing for bad block
 	if (bus_addr == 0x0)
 	{
@@ -799,6 +986,7 @@ int nfc_write_page(char *buf, int page)
 		*(buf+2048+5) = 0x11;
 	}
 #endif
+
 	status = nfc_write_raw_data(cmd1, cmd3, bus_addr, bus_addr2, conf, buf, size);
 	if (status & NAND_STATUS_FAIL) {
 		printf("%s: fail\n", __func__);
@@ -822,7 +1010,7 @@ int nfc_write_page(char *buf, int page)
 	return 0;
 }
 
-#ifdef CONFIG_BADBLOCK_CHECK
+#if defined(CONFIG_BADBLOCK_CHECK) || defined(MTK_NAND_BMT)
 int ranand_block_isbad(loff_t offs)
 {
 	unsigned int tag;
@@ -842,9 +1030,14 @@ int ranand_erase(unsigned int offs, int len)
 	unsigned int blocksize = CFG_BLOCKSIZE;
 	int ret = 0;
 
+#ifdef MTK_NAND_BMT
+	if (offs >= BMT_APPLY_START_OFFSET)
+		return ranand_erase_bmt(offs, len);
+#endif
+
+
 	ra_dbg("%s: start:%x, len:%x \n", __func__, offs, len);
 
-#define BLOCK_ALIGNED(a) ((a) & (CFG_BLOCKSIZE - 1))
 
 	if (BLOCK_ALIGNED(offs) || BLOCK_ALIGNED(len)) {
 		ra_dbg("%s: erase block not aligned, addr:%x len:%x %x\n", __func__, offs, len, CFG_BLOCKSIZE);
@@ -893,6 +1086,12 @@ int ranand_write(char *buf, unsigned int to, int datalen)
 	int pagemask = (CFG_PAGESIZE -1);
 	loff_t addr = to;
 	char buffers[CFG_PAGESIZE + CFG_PAGE_OOBSIZE];
+
+#ifdef MTK_NAND_BMT
+	if (to >= BMT_APPLY_START_OFFSET)
+		return ranand_write_bmt(buf, to, datalen);
+#endif
+
 
 #if 0
 	ops->retlen = 0;
@@ -996,6 +1195,11 @@ int ranand_read(char *buf, unsigned int from, int datalen)
 	int pagemask = (CFG_PAGESIZE -1);
 	loff_t addr = from;
 	char buffers[CFG_PAGESIZE + CFG_PAGE_OOBSIZE];
+
+#ifdef MTK_NAND_BMT
+	if (from >= BMT_APPLY_START_OFFSET)
+		return ranand_read_bmt(buf, from, datalen);
+#endif
 
 	if (buf == 0)
 		return 0;
@@ -1104,6 +1308,11 @@ int ranand_erase_write(char *buf, unsigned int offs, int count)
 	char *temp;
 #endif
 
+#ifdef MTK_NAND_BMT
+	if (offs >= BMT_APPLY_START_OFFSET)
+		return ranand_erase_write_bmt(buf, offs, count);
+#endif
+
 	printf("%s: offs:%x, count:%x\n", __func__, offs, count);
 
 	if (count > (CFG_CHIPSIZE - (CFG_BOOTLOADER_SIZE + CFG_CONFIG_SIZE + CFG_FACTORY_SIZE))) {
@@ -1136,7 +1345,6 @@ int ranand_erase_write(char *buf, unsigned int offs, int count)
 			}
 
 			blockaddr = offs & ~blockmask;
-try_next_0:
 			if (ranand_read(block, blockaddr, blocksize) != blocksize) {
 				free(block);
 				return -2;
@@ -1146,13 +1354,14 @@ try_next_0:
 			piece_size = min(count, blocksize - piece);
 			memcpy(block + piece, buf, piece_size);
 
+try_next_0:
 			rc = ranand_erase(blockaddr, blocksize);
 #ifdef CONFIG_BADBLOCK_CHECK
-			if (rc == 1) {
+			if (rc >= 1) {
 				printf("bad block: %x, try next: ", blockaddr);
-				blockaddr += blocksize;
+				blockaddr += (rc * blocksize);
 				printf("%x\n", blockaddr);
-				goto try_next_0;
+				//goto try_next_0;
 			}
 			else
 #endif
@@ -1160,10 +1369,19 @@ try_next_0:
 				free(block);
 				return -3;
 			}
+#ifdef CONFIG_BADBLOCK_CHECK
+			if (ranand_write(block, blockaddr, blocksize) != blocksize) {
+				printf("bad block: %x, try next: ", blockaddr);
+				blockaddr += blocksize;
+				printf("%x\n", blockaddr);
+				goto try_next_0;
+			}
+#else
 			if (ranand_write(block, blockaddr, blocksize) != blocksize) {
 				free(block);
 				return -4;
 			}
+#endif
 #ifdef RALINK_NAND_UPGRADE_CHECK
 			temp = malloc(blocksize);
 			if (!temp) {
@@ -1202,11 +1420,11 @@ try_next_0:
 try_next_1:
 			rc = ranand_erase(offs, aligned_size);
 #ifdef CONFIG_BADBLOCK_CHECK
-			if (rc == 1) {
+			if (rc >= 1) {
 				printf("bad block: %x, try next: ", offs);
-				offs += blocksize;
+				offs += (rc * blocksize);
 				printf("%x\n", offs);
-				goto try_next_1;
+				//goto try_next_1;
 			}
 			else
 #endif
@@ -1214,10 +1432,20 @@ try_next_1:
 			{
 				return -1;
 			}
+#ifdef CONFIG_BADBLOCK_CHECK
+			if (ranand_write(buf, offs, aligned_size) != aligned_size)
+			{
+				printf("bad block: %x, try next: ", offs);
+				offs += blocksize;
+				printf("%x\n", offs);
+				goto try_next_1;
+			}
+#else
 			if (ranand_write(buf, offs, aligned_size) != aligned_size)
 			{
 				return -1;
 			}
+#endif
 #ifdef RALINK_NAND_UPGRADE_CHECK
 			temp = malloc(blocksize);
 			if (!temp) {
@@ -1258,6 +1486,442 @@ try_next_1:
 }
 
 
+#ifdef MTK_NAND_BMT_DEBUG
+int ranand_erase_raw(unsigned int offs, int len)
+{
+	int page, status;
+	unsigned int blocksize = CFG_BLOCKSIZE;
+	int ret = 0;
+
+	ra_dbg("%s: start:%x, len:%x \n", __func__, offs, len);
+
+
+	if (BLOCK_ALIGNED(offs) || BLOCK_ALIGNED(len)) {
+		ra_dbg("%s: erase block not aligned, addr:%x len:%x %x\n", __func__, offs, len, CFG_BLOCKSIZE);
+		return -1;
+	}
+
+	while (len) {
+		page = (int)(offs >> CONFIG_PAGE_SIZE_BIT);
+
+		/* select device and check wp */
+		if (nfc_check_wp()) {
+			printf("%s: nand is write protected\n", __func__);
+			return -1;
+		}
+
+		status = nfc_erase_block(page);
+
+		/* See if block erase succeeded */
+		if (status) {
+			printf("%s: failed erase, page 0x%08x\n", __func__, page);
+			return -1;
+		}
+
+		/* Increment page address and decrement length */
+		len -= blocksize;
+		offs += blocksize;
+	}
+
+	return ret;
+}
+#endif
+
+#ifdef MTK_NAND_BMT
+int ranand_erase_bmt(unsigned int offs, int len)
+{
+	int page, status;
+	unsigned int blocksize = CFG_BLOCKSIZE;
+	int ret = 0;
+    int block;
+    u16 page_in_block;
+    int mapped_block;
+    u8 oob[16];
+
+	if (offs < BMT_APPLY_START_OFFSET)
+	{
+		return ranand_erase(offs, len);
+	}
+
+	ra_dbg("%s: start:%x, len:%x \n", __func__, offs, len);
+
+	if (BLOCK_ALIGNED(offs) || BLOCK_ALIGNED(len)) {
+		ra_dbg("%s: erase block not aligned, addr:%x len:%x %x\n", __func__, offs, len, CFG_BLOCKSIZE);
+		return -1;
+	}
+
+	while (len) {
+		page = (int)(offs >> CONFIG_PAGE_SIZE_BIT);
+
+		block = page >> CONFIG_NUMPAGE_PER_BLOCK_BIT;
+		page_in_block = page & ((1 << CONFIG_NUMPAGE_PER_BLOCK_BIT) - 1);
+		mapped_block = get_mapping_block_index(block);
+			
+		if (mapped_block != block)
+		{
+			page = page_in_block + (mapped_block << CONFIG_NUMPAGE_PER_BLOCK_BIT);
+		}
+
+		/* select device and check wp */
+		if (nfc_check_wp()) {
+			printf("%s: nand is write protected\n", __func__);
+			return -1;
+		}
+
+		// read oob before erase
+		nfc_read_oob(page, 0, oob, 16);
+		oob[CONFIG_ECC_OFFSET] = 0xff;
+		oob[CONFIG_ECC_OFFSET+1] = 0xff;
+		oob[CONFIG_ECC_OFFSET+2] = 0xff;
+
+		if (oob[CONFIG_BAD_BLOCK_POS] != 0xff)
+		{
+			if (update_bmt(page << CONFIG_PAGE_SIZE_BIT, UPDATE_ERASE_FAIL, NULL, NULL))
+			{
+				printf("%s: found bad block at page 0x%08x, update_bmt\n", __func__, page);
+			}
+			else
+			{
+				printf("%s: update bmt failed \n", __func__);
+				return -1;
+			}
+			oob[CONFIG_BAD_BLOCK_POS] = 0xff;
+			page = (int)(offs >> CONFIG_PAGE_SIZE_BIT);
+			status = update_bmt_page(&page, oob);			
+		}
+		else
+		{
+			status = nfc_erase_block(page);
+		}
+
+		nfc_write_oob(page, 0, oob, 16);
+
+		/* See if block erase succeeded */
+		if (status) {
+			if (update_bmt(page << CONFIG_PAGE_SIZE_BIT, UPDATE_ERASE_FAIL, NULL, NULL))
+			{
+				printf("%s: failed erase, page 0x%08x, update_bmt\n", __func__, page);
+			}
+			else
+				return -1;
+		}
+
+		/* Increment page address and decrement length */
+		len -= blocksize;
+		offs += blocksize;
+	}
+
+	return ret;
+}
+
+int ranand_write_bmt(char *buf, unsigned int to, int datalen)
+{
+	int page, i = 0;
+	size_t retlen = 0;
+	int pagemask = (CFG_PAGESIZE -1);
+	loff_t addr = to;
+	char buffers[CFG_PAGESIZE + CFG_PAGE_OOBSIZE];
+    int block, newpage;
+    u16 page_in_block;
+    int mapped_block;
+
+
+	if (to < BMT_APPLY_START_OFFSET)
+	{
+		return ranand_write(buf, to, datalen);
+	}
+
+	if (buf == 0)
+		datalen = 0;
+
+	// page write
+	while (datalen) {
+		int len;
+		int ret;
+		int offs;
+
+		page = (int)((addr & (CFG_CHIPSIZE-1)) >> CONFIG_PAGE_SIZE_BIT); //chip boundary
+		
+		ra_dbg("%s (%d): addr:%x, pg:%x, data:%p, datalen:%x\n", 
+				__func__, i++, (unsigned int)addr, page, buf, datalen);
+
+		/* select chip, and check if it is write protected */
+		if (nfc_check_wp()) {
+			printf("%s: nand is write protected\n", __func__);
+			return -1;
+		}
+
+		memset(buffers, 0x0ff, sizeof(buffers));
+
+		block = page >> CONFIG_NUMPAGE_PER_BLOCK_BIT;
+		page_in_block = page & ((1 << CONFIG_NUMPAGE_PER_BLOCK_BIT) - 1);
+		mapped_block = get_mapping_block_index(block);
+		
+		if (mapped_block != block)
+		{
+			newpage = page_in_block + (mapped_block << CONFIG_NUMPAGE_PER_BLOCK_BIT);
+		}
+		else
+			newpage = page;
+
+		// data write
+		offs = addr & pagemask;
+		len = min(datalen, CFG_PAGESIZE - offs);
+		if (buf && len > 0) {
+			memcpy(buffers + offs, buf, len);	// we can not sure ops->buf wether is DMA-able.
+
+			buf += len;
+			datalen -= len;
+			retlen += len;
+		}
+		
+		do {
+			ret = nfc_write_page(buffers, newpage);
+			if (ret) {
+				if (update_bmt((newpage << CONFIG_PAGE_SIZE_BIT), UPDATE_WRITE_FAIL, buffers, buffers + CFG_PAGESIZE))
+				{
+					break;// Update BMT success
+				}
+				else
+				{
+					// Update BMT fail
+				}
+			}
+			else
+				break;
+		}while (1);
+
+
+		addr = (page+1) << CONFIG_PAGE_SIZE_BIT;
+	}
+	return retlen;
+}
+
+int ranand_read_bmt(char *buf, unsigned int from, int datalen)
+{
+	int page, i = 0;
+	size_t retlen = 0;
+	int pagemask = (CFG_PAGESIZE -1);
+	loff_t addr = from;
+	char buffers[CFG_PAGESIZE + CFG_PAGE_OOBSIZE];
+    int block, newpage;
+    u16 page_in_block;
+    int mapped_block;
+
+	if (from < BMT_APPLY_START_OFFSET)
+		return ranand_read(buf, from, datalen);
+
+	if (buf == 0)
+		return 0;
+
+	while (datalen) {
+		int len;
+		int ret;
+		int offs;
+
+		ra_dbg("%s (%d): addr:%x, datalen:%x\n", 
+				__func__, i++, (unsigned int)addr, datalen);
+
+		page = (int)((addr & (CFG_CHIPSIZE-1)) >> CONFIG_PAGE_SIZE_BIT); 
+
+		block = page >> CONFIG_NUMPAGE_PER_BLOCK_BIT;
+		page_in_block = page & ((1 << CONFIG_NUMPAGE_PER_BLOCK_BIT) - 1);
+		mapped_block = get_mapping_block_index(block);
+		
+		if (mapped_block != block)
+		{
+			newpage = page_in_block + (mapped_block << CONFIG_NUMPAGE_PER_BLOCK_BIT);
+		}
+		else
+			newpage = page;
+
+		if (datalen > (CFG_PAGESIZE+CFG_PAGE_OOBSIZE) && (page & 0x1f) == 0)
+			printf(".");
+		ret = nfc_read_page(buffers, newpage);
+		//FIXME, something strange here, some page needs 2 more tries to guarantee read success.
+		if (ret) {
+			printf("read again:\n");
+			ret = nfc_read_page(buffers, newpage);
+			if (ret) {
+				printf("read again fail \n");
+			}
+			else {
+				printf(" read agian susccess \n");
+			}
+		}
+
+		// data read
+		offs = addr & pagemask;
+		len = min(datalen, CFG_PAGESIZE - offs);
+		if (buf && len > 0) {
+			memcpy(buf, buffers + offs, len); // we can not sure ops->buf wether is DMA-able.
+
+			buf += len;
+			datalen -= len;
+			retlen += len;
+			if (ret)
+				return -1;
+		}
+
+		// address go further to next page, instead of increasing of length of write. This avoids some special cases wrong.
+		addr = (page+1) << CONFIG_PAGE_SIZE_BIT;
+	}
+	if (datalen > (CFG_PAGESIZE+CFG_PAGE_OOBSIZE))
+		printf("\n");
+	return retlen;
+}
+
+
+int ranand_erase_write_bmt(char *buf, unsigned int offs, int count)
+{
+	int blocksize = CFG_BLOCKSIZE;
+	int blockmask = blocksize - 1;
+	int rc;
+#ifdef RALINK_NAND_UPGRADE_CHECK
+	int i = 0;
+	char *temp;
+#endif
+
+	if (offs < BMT_APPLY_START_OFFSET)
+		return ranand_erase_write(buf, offs, count);
+
+	printf("%s: offs:%x, count:%x\n", __func__, offs, count);
+
+	if (count > (CFG_CHIPSIZE - (CFG_BOOTLOADER_SIZE + CFG_CONFIG_SIZE + CFG_FACTORY_SIZE))) {
+		printf("Abort: image size larger than %d!\n\n", CFG_CHIPSIZE -
+					(CFG_BOOTLOADER_SIZE + CFG_CONFIG_SIZE + CFG_FACTORY_SIZE));
+		udelay(10*1000*1000);
+		return -1;
+	}
+
+	while (count > 0) {
+#define BLOCK_ALIGNE(a) (((a) & blockmask))
+//#ifdef CONFIG_BADBLOCK_CHECK
+#if 0
+		if (BLOCK_ALIGNE(offs)) {
+			printf("%s: offs %x is not aligned\n", __func__, offs);
+			return -1;
+		}
+		if (count < blocksize)
+#else
+		if (BLOCK_ALIGNE(offs) || (count < blocksize))
+#endif
+		{
+			char *block;
+			unsigned int piece, blockaddr;
+			int piece_size;
+
+			block = malloc(blocksize);
+			if (!block) {
+				printf("%s: malloc block failed\n", __func__);
+				return -1;
+			}
+
+			blockaddr = offs & ~blockmask;
+			if (ranand_read_bmt(block, blockaddr, blocksize) != blocksize) {
+				free(block);
+				return -2;
+			}
+
+			piece = offs & blockmask;
+			piece_size = min(count, blocksize - piece);
+			memcpy(block + piece, buf, piece_size);
+
+			rc = ranand_erase_bmt(blockaddr, blocksize);
+			if (rc != 0) {
+				free(block);
+				return -3;
+			}
+			if (ranand_write_bmt(block, blockaddr, blocksize) != blocksize) {
+				free(block);
+				return -4;
+			}
+#ifdef RALINK_NAND_UPGRADE_CHECK
+			temp = malloc(blocksize);
+			if (!temp) {
+				printf("%s: malloc temp failed\n", __func__);
+				return -1;
+			}
+
+			if (ranand_read_bmt(temp, blockaddr, blocksize) != blocksize) {
+				free(block);
+				free(temp);
+				return -2;
+			}
+
+			if(memcmp(block, temp, blocksize) == 0)
+			{    
+			   // printf("block write ok!\n\r");
+			}
+			else
+			{
+			        printf("block write incorrect!\n\r");
+				free(block);
+			        free(temp);
+			        return -2;
+			}
+                        free(temp);
+#endif
+			free(block);
+
+			buf += piece_size;
+			offs += piece_size;
+			count -= piece_size;
+		}
+		else {
+			unsigned int aligned_size = blocksize;
+
+			rc = ranand_erase_bmt(offs, aligned_size);
+			if (rc != 0)
+			{
+				return -1;
+			}
+			if (ranand_write_bmt(buf, offs, aligned_size) != aligned_size)
+			{
+				return -1;
+			}
+#ifdef RALINK_NAND_UPGRADE_CHECK
+			temp = malloc(blocksize);
+			if (!temp) {
+				printf("%s: malloc temp failed\n", __func__);
+				return -1;
+			}
+			//udelay(10);
+			for( i=0; i< (aligned_size/blocksize); i++)
+			{
+				if (ranand_read_bmt(temp, offs+(i*blocksize), blocksize) != blocksize)
+				{
+					free(temp);
+					return -2;
+				}
+				if(memcmp(buf+(i*blocksize), temp, blocksize) == 0)
+				{
+					//printf("blocksize write ok i=%d!\n\r", i);
+				}
+				else
+				{
+					printf("blocksize write incorrect block#=%d!\n\r",i);
+					free(temp);
+					return -2;
+				}
+			}
+			free(temp);
+#endif
+			
+			printf(".");
+
+			buf += aligned_size;
+			offs += aligned_size;
+			count -= aligned_size;
+		}
+	}
+	printf("Done!\n");
+	return 0;
+}
+
+#endif
+
+
 #define NAND_FLASH_DBG_CMD
 #ifdef NAND_FLASH_DBG_CMD
 int ralink_nand_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
@@ -1279,7 +1943,11 @@ int ralink_nand_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 			printf("malloc error\n");
 			return 0;
 		}
+#ifdef MTK_NAND_BMT
+		len = ranand_read_bmt(p, addr, len); //reuse len
+#else
 		len = ranand_read(p, addr, len); //reuse len
+#endif
 		printf("read len: %d\n", len);
 		for (i = 0; i < len; i++) {
 			printf("%02x ", p[i]);
@@ -1303,7 +1971,11 @@ int ralink_nand_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	else if (!strncmp(argv[1], "erase", 6)) {
 		addr = (unsigned int)simple_strtoul(argv[2], NULL, 16);
 		len = (int)simple_strtoul(argv[3], NULL, 16);
+#ifdef MTK_NAND_BMT
+		if (ranand_erase_bmt(addr, len) != 0)
+#else
 		if (ranand_erase(addr, len) != 0)
+#endif
 			printf("erase failed\n");
 		else
 			printf("erase succeed\n");
@@ -1325,7 +1997,11 @@ int ralink_nand_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 			*(p + i) = simple_strtoul(t, NULL, 16);
 		}
 		printf("write offs 0x%x, len 0x%x\n", o, l);
+#ifdef MTK_NAND_BMT
+		ranand_write_bmt(p, o, l);
+#else
 		ranand_write(p, o, l);
+#endif
 		free(p);
 	}
 	else if (!strncmp(argv[1], "oob", 4)) {
@@ -1340,6 +2016,50 @@ int ralink_nand_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	else if (!strncmp(argv[1], "init", 5)) {
 		ranand_init();
 	}
+#ifdef MTK_NAND_BMT
+	else if (!strncmp(argv[1], "bmt", 4)) {
+		dump_bmt();
+	}
+	// erase + write
+	else if (!strncmp(argv[1], "erawr", 6)) {
+		unsigned int o, l;
+		u8 t[3] = {0};
+
+		o = simple_strtoul(argv[2], NULL, 16);
+		l = strlen(argv[3]) / 2;
+		p = (u8 *)malloc(l);
+		if (!p) {
+			printf("malloc error\n");
+			return 0;
+		}
+		for (i = 0; i < l; i++) {
+			t[0] = argv[3][2*i];
+			t[1] = argv[3][2*i+1];
+			*(p + i) = simple_strtoul(t, NULL, 16);
+		}
+		printf("write offs 0x%x, len 0x%x\n", o, l);
+		ranand_erase_write_bmt(p, o, l);
+		free(p);
+	}
+#endif	
+#ifdef MTK_NAND_BMT_DEBUG
+	// raw operation without block mapping
+	else if (!strncmp(argv[1], "rawe", 5)) {
+		addr = (unsigned int)simple_strtoul(argv[2], NULL, 16);
+		len = (int)simple_strtoul(argv[3], NULL, 16);
+		if (ranand_erase_raw(addr, len) != 0)
+			printf("erase failed\n");
+		else
+			printf("erase succeed\n");
+	}
+	else if (!strncmp(argv[1], "markb", 6)) {
+		u8 bad = 0x33;
+		addr = (unsigned int)simple_strtoul(argv[2], NULL, 16); //page
+		printf("mark page 0x%x bad\n", addr);
+		nfc_write_oob(addr, CONFIG_BAD_BLOCK_POS, &bad, 1);
+		printf("\n");
+	}
+#endif
 	else
 		printf("Usage:\n%s\n use \"help nand\" for detail!\n", cmdtp->usage);
 	return 0;
@@ -1354,6 +2074,13 @@ U_BOOT_CMD(
 	"  nand write <addr> <data...>\n"
 	"  nand page <number>\n"
 	"  nand erase <addr> <len>\n"
+#ifdef MTK_NAND_BMT
+	"  nand erawr <addr> <data...>\n"
+#ifdef MTK_NAND_BMT_DEBUG
+	"  nand rawe <addr> <len>\n"
+#endif
+	"  nand bmt\n"
+#endif
 	"  nand init\n"
 );
 #endif

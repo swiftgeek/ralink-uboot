@@ -84,9 +84,9 @@
 
 #if (CONFIG_COMMANDS & CFG_CMD_NET)
 
-#define ARP_TIMEOUT		5		/* Seconds before trying ARP again */
+#define ARP_TIMEOUT		3		/* Seconds before trying ARP again */
 #ifndef	CONFIG_NET_RETRY_COUNT
-# define ARP_TIMEOUT_COUNT	5		/* # of timeouts before giving up  */
+# define ARP_TIMEOUT_COUNT	8		/* # of timeouts before giving up  */
 #else
 # define ARP_TIMEOUT_COUNT  (CONFIG_NET_RETRY_COUNT)
 #endif
@@ -185,7 +185,6 @@ int		NetArpWaitTxPacketSize;
 uchar 		NetArpWaitPacketBuf[PKTSIZE_ALIGN + PKTALIGN];
 ulong		NetArpWaitTimerStart;
 int		NetArpWaitTry;
-
 
 
 //===================================================
@@ -1162,7 +1161,6 @@ NetReceive(volatile uchar * inpkt, int len)
 	NetRxPkt = inpkt;
 	NetRxPktLen = len;
 	et = (Ethernet_t *)inpkt;
-
 
 	/* too small packet? */
 	if (len < ETHER_HDR_SIZE)

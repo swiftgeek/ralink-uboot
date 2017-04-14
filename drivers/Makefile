@@ -27,7 +27,7 @@ include $(TOPDIR)/config.mk
 
 LIB	= libdrivers.a
 
-OBJS	= rt2880_eth.o #i2c_drv.o
+OBJS	= rt2880_eth.o i2c_drv.o
 
 ifeq ($(RALINK_MDIO_ACCESS_FUN),ON)
 OBJS	+= mii_mgr.o
@@ -41,7 +41,15 @@ ifeq ($(CFG_ENV_IS), IN_SPI)
  ifeq ($(RT6855A_MP), y)
  OBJS	+= spi_rt6855A_flash.o 
  else
+ ifeq ($(MT7621_MP), y)
+ OBJS	+= spi_rt6855A_flash.o 
+ else
+ ifeq ($(MT7628_MP), y)
+ OBJS	+= spi_rt6855A_flash.o 
+ else
  OBJS	+= spi_flash.o 
+ endif
+ endif
  endif
  ifeq ($(RT3883_MP), y)
  OBJS	+= spi_drv.o 
@@ -49,7 +57,11 @@ ifeq ($(CFG_ENV_IS), IN_SPI)
 endif
 
 ifeq ($(CFG_ENV_IS), IN_NAND)
+ ifeq ($(MT7621_MP), y)
+	OBJS    += nand/mtk_nand.o nand/bmt.o nand/nand_base.o nand/nand_ids.o
+ else
 OBJS	+= nand_flash.o 
+ endif
  ifeq ($(RT3883_MP), y)
  OBJS	+= spi_drv.o 
  endif

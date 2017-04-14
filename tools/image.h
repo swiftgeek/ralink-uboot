@@ -129,7 +129,14 @@
 #define IH_COMP_XZ		5	/* xz    Compression Used	*/
 
 #define IH_MAGIC	0x27051956	/* Image Magic Number		*/
-#if defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
+
+#if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+#if defined (ON_BOARD_NAND_FLASH_COMPONENT)
+#define IH_NMLEN		(16-4)
+#else
+#define IH_NMLEN        (16)
+#endif
+#elif defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD) || defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 #define IH_NMLEN		(16-4*2)	/* Image Name Length		*/
 #elif defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD)
 #define IH_NMLEN		(16-4*4)
@@ -141,8 +148,8 @@
  */
 
 
-typedef struct  __attribute__ ((packed)) dram_header {
-#if defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD)
+typedef struct dram_header {
+#if defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7628_ASIC_BOARD) || defined(MT7628_FPGA_BOARD)
 	uint16_t	ddr_self_refresh;
 	uint16_t	ddr_cfg11;
 	uint32_t	ddr_cfg10;
@@ -200,7 +207,43 @@ typedef struct  __attribute__ ((packed)) dram_header {
 		}sdr;
 	};
 #endif
-} dram_header_t;
+} dram_header_t __attribute__ ((packed));
+
+typedef struct  nand_badblock_info1_type {
+	uint32_t	ecc_bits	:	3;
+	uint32_t	rsvd		:	5;
+	uint32_t	ecc_offset	:	8;
+	uint32_t	bad_block_offser	:	8;
+	uint32_t	checksum	:	8;
+} nand_badblock_info1_t __attribute__ ((packed));
+
+typedef struct  nand_info_1_type {	
+	uint32_t	pagesize 	: 2;
+	uint32_t	rsvd0		: 2;	
+	uint32_t	addr_cycle 	: 2;
+	uint32_t	rsvd1		: 2;	
+	uint32_t	spare_size	: 2;
+	uint32_t	rsvd2		: 2;	
+	uint32_t	total_size	: 3;
+	uint32_t	rsvd3		: 1;
+	uint32_t	block_size	: 2;
+	uint32_t	rsvd4		: 2;	
+	uint32_t	magic_id	: 12;	
+} nand_info_1_t __attribute__ ((packed));
+
+	
+typedef struct nand_header {
+	uint32_t			nand_ac_timing;
+	uint32_t				ih_stage_offset;			/* stage1 offset */
+	uint32_t				ih_bootloader_offset;		/* bootloader offset */
+	union 
+	{
+	nand_info_1_t			nand_info_1;
+		uint32_t				nand_info_1_data;
+	};
+	//nand_badblock_info1_t	nand_badblock_info1;
+	uint32_t				crc;
+} nand_header_t __attribute__ ((packed));
 
 typedef struct image_header {
 	uint32_t	ih_magic;	/* Image Header Magic Number	*/
@@ -215,8 +258,12 @@ typedef struct image_header {
 	uint8_t		ih_type;	/* Image Type			*/
 	uint8_t		ih_comp;	/* Compression Type		*/
 	uint8_t		ih_name[IH_NMLEN];	/* Image Name		*/
+#if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+	nand_header_t	ih_nand;
+#else
 	dram_header_t   ih_dram;
-} image_header_t;
+#endif	
+} image_header_t __attribute__((packed));
 
 
 #endif	/* __IMAGE_H__ */

@@ -2,7 +2,7 @@
 /* Defines for NAND Flash Translation Layer  */
 /* (c) 1999 Machine Vision Holdings, Inc.    */
 /* Author: David Woodhouse <dwmw2@mvhi.com>  */
-/* $Id: //WIFI_SOC/release/SDK_4_1_0_0/Uboot/include/linux/mtd/nftl.h#1 $ */
+/* $Id: //WIFI_SOC/MP/SDK_4_2_0_0/Uboot/include/linux/mtd/nftl.h#1 $ */
 
 #ifndef __MTD_NFTL_H__
 #define __MTD_NFTL_H__

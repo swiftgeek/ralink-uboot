@@ -32,7 +32,6 @@
 #include "serial.h"
 #include <rt_mmap.h>
 
-extern unsigned long mips_bus_feq;
 
 #if defined(RT6855A_ASIC_BOARD) || defined(RT6855A_FPGA_BOARD)
 static unsigned long uclk_20M[13]={ // 65000*(b*16*1)/2000000
@@ -88,17 +87,18 @@ void bbu_uart_init(void)
 
 #else
 
-/* this function does not need to know the cpu and bus clock after RT3352. the clock is fix at 40Mhz */
+/* this function does not need to know the cpu and bus clock after RT3883. the clock is fix at 40Mhz */
 void serial_setbrg (void)
 {
 	//DECLARE_GLOBAL_DATA_PTR;
 	unsigned int clock_divisor = 0;
-	u32 reg, cpu_clock = 0;
-#if defined(RT2880_ASIC_BOARD) || defined(RT2883_ASIC_BOARD) || defined(RT3052_ASIC_BOARD) || defined(RT3352_ASIC_BOARD) || defined(RT3883_ASIC_BOARD) || defined (RT5350_ASIC_BOARD) || defined(RT6855_ASIC_BOARD) ||  defined(MT7620_ASIC_BOARD) ||  defined(MT7621_ASIC_BOARD)
+#if defined(RT2880_FPGA_BOARD) || defined(RT2880_ASIC_BOARD) || \
+    defined(RT3052_FPGA_BOARD) || defined(RT3052_ASIC_BOARD)
+	unsigned long mips_bus_feq;
+	u32     reg = 0, cpu_clock = 0;
 	u8	clk_sel;
 	u8	clk_sel2;
 #endif
-	reg = RALINK_REG(RT2880_SYSCFG_REG);
 
 	/* 
 	 * CPU_CLK_SEL (bit 21:20)
@@ -106,31 +106,15 @@ void serial_setbrg (void)
 #ifdef RT2880_FPGA_BOARD
 	cpu_clock = 25 * 1000 * 1000;
 	mips_bus_feq = cpu_clock / 2;
-#elif defined (RT2883_FPGA_BOARD) || defined (RT3052_FPGA_BOARD) || defined (RT3352_FPGA_BOARD) || defined (RT3883_FPGA_BOARD) || defined (RT5350_FPGA_BOARD) || defined (RT6855_FPGA_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7621_FPGA_BOARD)
+#elif defined (RT3052_FPGA_BOARD)
 	cpu_clock = 40 * 1000 * 1000;
-	mips_bus_feq = cpu_clock / 3;
-#elif defined(RT2883_ASIC_BOARD) 
-	clk_sel = (reg>>18) & 0x03;
-	switch(clk_sel) {
-		case 0:
-			cpu_clock = (380*1000*1000);
-			break;
-		case 1:
-			cpu_clock = (390*1000*1000);
-			break;
-		case 2:
-			cpu_clock = (400*1000*1000);
-			break;
-		case 3:
-			cpu_clock = (420*1000*1000);
-			break;
-	}
 	mips_bus_feq = cpu_clock / 3;
 #elif defined(RT3052_ASIC_BOARD)
 #if defined(RT3350_ASIC_BOARD)
        //MA10 is floating
         cpu_clock = (320*1000*1000);
 #else
+	reg = RALINK_REG(RT2880_SYSCFG_REG);
 	clk_sel = (reg>>18) & 0x01;
 	switch(clk_sel) {
 		case 0:
@@ -142,155 +126,8 @@ void serial_setbrg (void)
 	}
 #endif
 	mips_bus_feq = cpu_clock / 3;
-#elif defined(RT3352_ASIC_BOARD)
-	clk_sel = (reg>>8) & 0x01;
-	switch(clk_sel) {
-		case 0:
-			cpu_clock = (384*1000*1000);
-			break;
-		case 1:
-			cpu_clock = (400*1000*1000);
-			break;
-	}
-	mips_bus_feq = cpu_clock / 3;
-#elif defined(RT5350_ASIC_BOARD)
-	clk_sel = (reg>>8) & 0x01;
-	clk_sel2 = (reg>>10) & 0x01;
-	clk_sel |= (clk_sel2 << 1 );
-
-	switch(clk_sel) {
-		case 0:
-			cpu_clock = (360*1000*1000);
-			mips_bus_feq = (120*1000*1000);
-			break;
-		case 1:
-			//reserved
-			break;
-		case 2:
-			cpu_clock = (320*1000*1000);
-			mips_bus_feq = (80*1000*1000);
-			break;
-		case 3:
-			cpu_clock = (300*1000*1000);
-			mips_bus_feq = (100*1000*1000);
-			break;
-	}
-#elif defined(RT6855_ASIC_BOARD)
-	cpu_clock = (400*1000*1000);
-	mips_bus_feq = (133*1000*1000);
-#elif defined(MT7620_ASIC_BOARD)
-
-	reg = RALINK_REG(RT2880_SYSCFG_REG);
-	if( ((reg >> 4) & 0x3) == 0) { /* SDR */
-#ifdef CPLL_FROM_480MHZ /* MT7620 ASIC E1 */
-		cpu_clock = (480*1000*1000);
-		mips_bus_feq = (120*1000*1000);
-#else
-		cpu_clock = (600*1000*1000);
-		mips_bus_feq = (150*1000*1000);
-#endif
-	}else { /* DDR1/2 */
-		cpu_clock  = (600*1000*1000);
-		mips_bus_feq = (200*1000*1000);
-	}
-
-#elif defined(MT7621_ASIC_BOARD)
-	reg = RALINK_REG(RT2880_SYSCFG_REG);
-	if( ((reg >> 4) & 0x3) == 0) { /* SDR */
-#ifdef CPLL_FROM_480MHZ /* MT7621 ASIC E1 */
-		cpu_clock = (480*1000*1000);
-		mips_bus_feq = (120*1000*1000);
-#else
-		cpu_clock = (600*1000*1000);
-		mips_bus_feq = (150*1000*1000);
-#endif
-	}else { /* DDR1/2 */
-		cpu_clock  = (600*1000*1000);
-		mips_bus_feq = (200*1000*1000);
-	}
-#elif defined(RT3883_ASIC_BOARD)
-	clk_sel = (reg>>8) & 0x03;
-	switch(clk_sel) {
-		case 0:
-			cpu_clock = (250*1000*1000);
-			break;
-		case 1:
-			cpu_clock = (384*1000*1000);
-			break;
-		case 2:
-			cpu_clock = (480*1000*1000);
-			break;
-		case 3:
-			cpu_clock = (500*1000*1000);
-			break;
-	}
-#if defined (CFG_ENV_IS_IN_SPI)
-	if ((reg>>17) & 0x1) { //DDR2
-		switch(clk_sel) {
-			case 0:
-				mips_bus_feq = (125*1000*1000);
-				break;
-			case 1:
-				mips_bus_feq = (128*1000*1000);
-				break;
-			case 2:
-				mips_bus_feq = (160*1000*1000);
-				break;
-			case 3:
-				mips_bus_feq = (166*1000*1000);
-				break;
-		}
-	}
-	else {
-		switch(clk_sel) {
-			case 0:
-				mips_bus_feq = (83*1000*1000);
-				break;
-			case 1:
-				mips_bus_feq = (96*1000*1000);
-				break;
-			case 2:
-				mips_bus_feq = (120*1000*1000);
-				break;
-			case 3:
-				mips_bus_feq = (125*1000*1000);
-				break;
-		}
-	}
-#elif defined ON_BOARD_SDR
-        switch(clk_sel) {
-                case 0:
-                        mips_bus_feq = (83*1000*1000);
-                        break;
-                case 1:
-                        mips_bus_feq = (96*1000*1000);
-                        break;
-                case 2:
-                        mips_bus_feq = (120*1000*1000);
-                        break;
-                case 3:
-                        mips_bus_feq = (125*1000*1000);
-                        break;
-        }
-#elif defined ON_BOARD_DDR2
-        switch(clk_sel) {
-                case 0:
-                        mips_bus_feq = (125*1000*1000);
-                        break;
-                case 1:
-                        mips_bus_feq = (128*1000*1000);
-                        break;
-                case 2:
-                        mips_bus_feq = (160*1000*1000);
-                        break;
-                case 3:
-                        mips_bus_feq = (166*1000*1000);
-                        break;
-        }
-#else
-#error undef SDR or DDR
-#endif
 #elif defined(RT2880_ASIC_BOARD)
+	reg = RALINK_REG(RT2880_SYSCFG_REG);
 	clk_sel = (reg>>20) & 0x03;
 	switch(clk_sel) {
 #ifdef RT2880_MP
@@ -324,17 +161,12 @@ void serial_setbrg (void)
 #endif
 	}
 	mips_bus_feq = cpu_clock / 2;
-#elif defined(RT6855A_ASIC_BOARD) || defined(RT6855A_FPGA_BOARD)
-	//use bbu_init_uart() instead, and this is to avoid the compiling error
-#else
-#error "undefined Platform"
 #endif
-
-   	//RALINK_REG(RT2880_SYSCFG_REG) = reg;
 
 	//reset uart lite and uart full
 #if defined(RT2880_ASIC_BOARD) || defined(RT2880_FPGA_BOARD)
-	*(unsigned long *)(RALINK_SYSCTL_BASE + 0x0034) = cpu_to_le32(1<<12);
+	*(unsigned long *)(RALINK_SYSCTL_BASE + 0x0034) |= cpu_to_le32(1<<12);
+	*(unsigned long *)(RALINK_SYSCTL_BASE + 0x0034) &= ~(1<<12);
 #elif defined(RT2883_ASIC_BOARD) || defined(RT2883_FPGA_BOARD) || \
       defined(RT3052_ASIC_BOARD) || defined(RT3052_FPGA_BOARD) || \
       defined(RT3352_ASIC_BOARD) || defined(RT3352_FPGA_BOARD) || \
@@ -342,23 +174,39 @@ void serial_setbrg (void)
       defined(RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD) || \
       defined(RT6855_ASIC_BOARD) || defined(RT6855_FPGA_BOARD) || \
       defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD) || \
-      defined(MT7621_ASIC_BOARD) || defined(MT7621_FPGA_BOARD)
-	*(unsigned long *)(RALINK_SYSCTL_BASE + 0x0034) = cpu_to_le32(1<<19|1<<12);
+      defined(MT7628_ASIC_BOARD) || defined(MT7628_FPGA_BOARD)
+	*(unsigned long *)(RALINK_SYSCTL_BASE + 0x0034) |= cpu_to_le32(1<<19|1<<12);
+	/* RST Control change from W1C to W1W0 to reset, update 20080812 */
+	*(unsigned long *)(RALINK_SYSCTL_BASE + 0x0034) &= ~(1<<19|1<<12);
+#elif defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+	*(unsigned long *)(RALINK_SYSCTL_BASE + 0x0034) |= cpu_to_le32(1<<19|1<<20|1<<21);
+	*(unsigned long *)(RALINK_SYSCTL_BASE + 0x0034) &= ~(1<<19|1<<20|1<<21);
+#if 0
+	u32 reg;
+	reg = ra_inl(RT2880_GPIOMODE_REG);
+	//UART2 as UART mode
+	reg &= ~(0x3 << 3);
+	//UART3 as UART mode
+	reg &= ~(0x3 << 5);
+	ra_outl(RT2880_GPIOMODE_REG, reg);
+#endif
 #elif defined(RT6855A_ASIC_BOARD) || defined(RT6855A_FPGA_BOARD)
 	//use bbu_init_uart insead and avoid the compiling error
 #else
 #error "undefined Platform"
 #endif
 	/* RST Control change from W1C to W1W0 to reset, update 20080812 */
-	*(unsigned long *)(RALINK_SYSCTL_BASE + 0x0034) = 0;
+	//*(unsigned long *)(RALINK_SYSCTL_BASE + 0x0034) = 0;
 	//clock_divisor = (CPU_CLOCK_RATE / SERIAL_CLOCK_DIVISOR / gd->baudrate);
 #if defined(RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD) || \
     defined(RT3352_ASIC_BOARD) || defined(RT3352_FPGA_BOARD) || \
     defined(RT5350_ASIC_BOARD) || defined(RT5350_FPGA_BOARD) || \
     defined(RT6855_ASIC_BOARD) || defined(RT6855_FPGA_BOARD) || \
     defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD) || \
-    defined(MT7621_ASIC_BOARD) || defined(MT7621_FPGA_BOARD)
+    defined(MT7628_ASIC_BOARD) || defined(MT7628_FPGA_BOARD)
 	clock_divisor = (40*1000*1000/ SERIAL_CLOCK_DIVISOR / CONFIG_BAUDRATE);
+#elif  defined(MT7621_ASIC_BOARD) || defined(MT7621_FPGA_BOARD)
+	clock_divisor = (50 * 1000*1000/ SERIAL_CLOCK_DIVISOR / CONFIG_BAUDRATE);
 #else
 	clock_divisor = (mips_bus_feq/ SERIAL_CLOCK_DIVISOR / CONFIG_BAUDRATE);
 #endif

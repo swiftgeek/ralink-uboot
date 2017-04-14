@@ -42,13 +42,14 @@
 #include "mmc_test.h"
 #include <linux/types.h>
 #include "utils.h"
+#include <rt_mmap.h>
 
 /*--------------------------------------------------------------------------*/
 /* Common Macro                                                             */
 /*--------------------------------------------------------------------------*/
 #define REG_ADDR(x)             ((volatile uint32*)(base + OFFSET_##x))
 
-#define MSDC0_BASE		0x10130000
+#define MSDC0_BASE		RALINK_MSDC_BASE
 /*--------------------------------------------------------------------------*/
 /* Common Definition                                                        */
 /*--------------------------------------------------------------------------*/
@@ -83,9 +84,13 @@
 /* FIXME. E1 doesn't support SDR104 (Need ECO) so we limit the max. card clock 
  * to 100MHz, which only allows card in DDR50, SDR50/25/12, HS, ST speed mode.
  */
-#define MSDC_MAX_SCLK           (48000000)
+#if defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD)
+#define MSDC_MAX_SCLK           (48000000) // chhung
 //#define MSDC_MAX_SCLK           (197000000)
 //#define MSDC_MAX_SCLK           (100000000)
+#elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) || defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
+#define MSDC_MAX_SCLK           (50000000) // chhung
+#endif
 #define MSDC_MIN_SCLK           (260000)
 
 #define MSDC_AUTOCMD12          (0x0001)

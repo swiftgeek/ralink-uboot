@@ -1456,7 +1456,11 @@ int msdc_dma_config(struct mmc_host *host, struct dma_config *cfg)
         BUG_ON(cfg->sglen != 1);
         MSDC_WRITE32(MSDC_DMA_SA, sg->addr);
         MSDC_SET_FIELD(MSDC_DMA_CTRL, MSDC_DMA_CTRL_LASTBUF, 1);
+#if defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD)
+        MSDC_WRITE32(RALINK_MSDC_BASE+0xa8, sg->len);
+#else
         MSDC_SET_FIELD(MSDC_DMA_CTRL, MSDC_DMA_CTRL_XFERSZ, sg->len);
+#endif
         MSDC_SET_FIELD(MSDC_DMA_CTRL, MSDC_DMA_CTRL_BRUSTSZ, cfg->burstsz);
         MSDC_SET_FIELD(MSDC_DMA_CTRL, MSDC_DMA_CTRL_MODE, 0);
         break;
@@ -2807,7 +2811,11 @@ done:
 void msdc_config_clksrc(struct mmc_host *host, clk_source_t clksrc)
 {
     // u32 clks[] = {26000000, 197000000, 208000000, 0};
-    u32 clks[] = {48000000, 0};   /* RT6352 fixs 48M - chhung */
+#if defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD)
+    u32 clks[] = {48000000};   /* MT7620 fixs 48M - chhung */
+#elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) || defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
+    u32 clks[] = {50000000};   /* MT7621 fixs 50M - chhung */
+#endif
     u32 tmp;
 	clk_source_t tmp_clksrc = clksrc;
 
@@ -2856,6 +2864,16 @@ void msdc_config_clock(struct mmc_host *host, int ddr, u32 hz)
     u32 sclk;
     u32 orig_clksrc = host->clksrc;
 
+#if defined (MT7621_FPGA_BOARD)
+    mode = 0x0; /* use divisor */
+    if (hz >= (host->clk >> 1)) {
+	    div  = 0;			   /* mean div = 1/2 */
+	    sclk = host->clk >> 1; /* sclk = clk / 2 */
+    } else {
+	    div  = (host->clk + ((hz << 2) - 1)) / (hz << 2);
+	    sclk = (host->clk >> 2) / div;
+    }
+#else
     if (ddr) {
         mode = 0x2; /* ddr mode and use divisor */
         if (hz >= (host->clk >> 2)) {
@@ -2880,6 +2898,7 @@ void msdc_config_clock(struct mmc_host *host, int ddr, u32 hz)
             sclk = (host->clk >> 2) / div;
         }
     }
+#endif
     host->sclk = sclk;
 
     if (hz > 100000000 && mmc_card_uhs1(host->card)) {

@@ -604,4 +604,12 @@ int	pcmcia_init (void);
 void	show_boot_progress (int status);
 #endif
 
+#if defined(CFG_ENV_IS_IN_NAND) /* Environment is in NAND Flash */
+#if defined(MTK_NAND)
+#include "../drivers/nand/mt6575_typedefs.h"
+#else
+#include "../drivers/ralink_nand.h"
+#endif
+#endif
+
 #endif	/* __COMMON_H_ */

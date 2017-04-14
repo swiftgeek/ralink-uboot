@@ -28,6 +28,17 @@
 #ifndef __CONFIG_H
 #define __CONFIG_H
 
+#ifndef __ASSEMBLY__ 
+#if defined(CFG_ENV_IS_IN_NAND) /* Environment is in NAND Flash */
+#if defined(MTK_NAND) 
+extern unsigned int  CFG_BLOCKSIZE;
+#else
+#include "../../drivers/ralink_nand.h"
+#endif
+#endif
+#endif
+
+#include "../../autoconf.h"
 //#define DEBUG				1
 //#define ET_DEBUG
 #define CONFIG_RT2880_ETH		1	/* Enable built-in 10/100 Ethernet */
@@ -38,7 +49,7 @@
     defined (RT2883_FPGA_BOARD) || defined (RT3883_FPGA_BOARD) || \
     defined (RT5350_FPGA_BOARD) || defined (RT6855_FPGA_BOARD) || \
     defined (MT7620_FPGA_BOARD) || defined (MT7621_FPGA_BOARD) || \
-    defined (RT6855A_FPGA_BOARD)
+    defined (RT6855A_FPGA_BOARD) || defined (MT7628_FPGA_BOARD)
 #define FPGA_BOARD_CLOCK_RATE 40000000
 #else
 #define FPGA_BOARD_CLOCK_RATE 25000000
@@ -59,8 +70,14 @@
 #define CPU_CLOCK_RATE	500000000 
 #elif defined (MT7620_ASIC_BOARD)
 #define CPU_CLOCK_RATE	600000000 
+#elif defined (MT7628_ASIC_BOARD)
+#define CPU_CLOCK_RATE	600000000 
 #elif defined (MT7621_ASIC_BOARD)
-#define CPU_CLOCK_RATE	400000000 
+#if defined (MT7621_CPU_FREQUENCY)
+#define CPU_CLOCK_RATE	(MT7621_CPU_FREQUENCY*1000000)
+#else
+#define CPU_CLOCK_RATE  (800000000)
+#endif
 #elif defined (RT2883_ASIC_BOARD)
 #define CPU_CLOCK_RATE	400000000 
 #elif defined (RT3883_ASIC_BOARD)
@@ -119,6 +136,8 @@
 #define	CFG_PROMPT		"MT7620 # "
 #elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) 
 #define	CFG_PROMPT		"MT7621 # "
+#elif defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD) 
+#define	CFG_PROMPT		"MT7628 # "
 #else
 #define	CFG_PROMPT		"RTxxxx # "
 #endif
@@ -126,7 +145,11 @@
 #define	CFG_PBSIZE (CFG_CBSIZE+sizeof(CFG_PROMPT)+16)  /* Print Buffer Size */
 #define	CFG_MAXARGS		16		/* max number of command args*/
 
+#if defined (MTK_NAND)
+#define CFG_MALLOC_LEN      1*1024*1024
+#else
 #define CFG_MALLOC_LEN		256*1024
+#endif
 
 #define CFG_BOOTPARAMS_LEN	128*1024
 
@@ -153,7 +176,7 @@
 #else
 #define	CFG_LOAD_ADDR		0x80100000	/* default load address	*/
 #define CFG_HTTP_DL_ADDR	0x80300000
-#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7620_ASIC_BOARD)
+#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7620_ASIC_BOARD) || defined(MT7628_FPGA_BOARD) || defined(MT7628_ASIC_BOARD)
 #define CFG_SPINAND_LOAD_ADDR	0x80c00000
 #else
 #define CFG_SPINAND_LOAD_ADDR	0x80500000
@@ -216,7 +239,7 @@
       defined (RT5350_FPGA_BOARD) || defined (RT5350_ASIC_BOARD) || \
       defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) || \
       defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD) || \
-      defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD)
+      defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
 #define PHYS_FLASH_START	0xBC000000 /* Flash Bank #2 */
 #define PHYS_FLASH_1		0xBC000000 /* Flash Bank #1 */
   #ifdef DUAL_IMAGE_SUPPORT
@@ -232,6 +255,12 @@
   #define PHYS_FLASH2_1		0xBD000000 /* Flash Bank #2 */
   #endif
   #endif // DUAL_IMAGE_SUPPORT
+#elif  defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD)
+#define PHYS_FLASH_START	0xBFC00000 /* Flash Bank #2 */
+#define PHYS_FLASH_1		0xBFC00000 /* Flash Bank #1 */
+  #ifdef DUAL_IMAGE_SUPPORT
+	/* TODO */
+  #endif
 #elif defined (RT3052_FPGA_BOARD) || defined (RT3052_ASIC_BOARD)
   // RT3052_MP2 and 32M_FLASH
   #define PHYS_FLASH_START	0xBF000000 /* Address for issuing flash command */
@@ -296,9 +325,15 @@
 #define CFG_CONFIG_SIZE		0x10000
 #define CFG_FACTORY_SIZE	0x00000
 #else
+#if defined(MTK_NAND) || defined (CFG_ENV_IS_IN_NAND)
+#define CFG_BOOTLOADER_SIZE	(CFG_BLOCKSIZE<<2)
+#define CFG_CONFIG_SIZE		(CFG_BLOCKSIZE<<2)
+#define CFG_FACTORY_SIZE	(CFG_BLOCKSIZE<<1)
+#else
 #define CFG_BOOTLOADER_SIZE	0x30000
 #define CFG_CONFIG_SIZE		0x10000
 #define CFG_FACTORY_SIZE	0x10000
+#endif
 #endif
 
 #define CFG_ENV_ADDR		(CFG_FLASH_BASE + CFG_BOOTLOADER_SIZE)
@@ -394,7 +429,8 @@
 #define RT2880_REG_PIODIR       (RT2880_PRGIO_ADDR + 0x24)
 
 #define RALINK_REG(x)		(*((volatile u32 *)(x)))	
-#if defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD)
+#if defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD) || \
+    defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) || defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
 #define ra_inb(offset)		(*(volatile unsigned char *)(offset))
 #define ra_inw(offset)		(*(volatile unsigned short *)(offset))
 #define ra_inl(offset)		(*(volatile unsigned long *)(offset))
@@ -429,5 +465,9 @@
 #define LITTLEENDIAN
 #define CONFIG_CRC32_VERIFY
 #endif /* RALINK_USB */
+
+#if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+//#define USE_PIO_DBG		1
+#endif
 
 #endif	/* __CONFIG_H */

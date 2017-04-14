@@ -44,7 +44,11 @@ VENDOR=
 TOPDIR	:= $(shell if [ "$$PWD" != "" ]; then echo $$PWD; else pwd; fi)
 export	TOPDIR
 
+ifeq ($(MT7621_MP), y)
+CONFIG_CROSS_COMPILER_PATH ?= /opt/mips-2012.03/bin/
+else
 CONFIG_CROSS_COMPILER_PATH ?= /opt/buildroot-gcc342/bin
+endif
 
 ifeq (include/config.mk,$(wildcard include/config.mk))
 # load ARCH, BOARD, and CPU configuration
@@ -71,7 +75,6 @@ CROSS_COMPILE = $(CONFIG_CROSS_COMPILER_PATH)/i386-linux-
 endif
 endif
 ifeq ($(ARCH),mips)
-# CROSS_COMPILE = $(CONFIG_CROSS_COMPILER_PATH)/mips_4KCle-
 CROSS_COMPILE = $(CONFIG_CROSS_COMPILER_PATH)/mipsel-linux-
 endif
 ifeq ($(ARCH),nios)
@@ -90,10 +93,13 @@ endif
 endif
 
 ifeq ($(ON_BOARD_DDR1),y)
-DRAM_TYPE=DDR
+DRAM_TYPE=DDR1
 endif
 ifeq ($(ON_BOARD_DDR2),y)
-DRAM_TYPE=DDR
+DRAM_TYPE=DDR2
+endif
+ifeq ($(ON_BOARD_DDR3),y)
+DRAM_TYPE=DDR3
 endif
 ifeq ($(ON_BOARD_SDR),y)
 DRAM_TYPE=SDR
@@ -117,6 +123,9 @@ DRAM_SIZE=128
 endif
 ifeq ($(ON_BOARD_2048M_DRAM_COMPONENT),y)
 DRAM_SIZE=256
+endif
+ifeq ($(ON_BOARD_4096M_DRAM_COMPONENT),y)
+DRAM_SIZE=448
 endif
 
 # DRAM_WIDTH: SDR(DDR2)
@@ -157,7 +166,12 @@ export	CROSS_COMPILE
 #########################################################################
 # U-Boot objects....order is important (i.e. start must be first)
 
+ifeq ($(MT7621_MP), y)
+OBJS  = cpu/$(CPU)/start_1004k.o
+else
 OBJS  = cpu/$(CPU)/start.o
+endif
+
 ifeq ($(CPU),i386)
 OBJS += cpu/$(CPU)/start16.o
 OBJS += cpu/$(CPU)/reset.o
@@ -209,6 +223,9 @@ ALL = u-boot.srec uboot.bin System.map
 ifneq ($(CFG_ENV_IS), IN_FLASH)
 ALL += uboot.img
 endif
+ifeq ($(MT7621_MP), y)
+ALL += uboot_a.bin
+endif
 
 all:		clean $(ALL)
 
@@ -219,30 +236,60 @@ u-boot.hex:	u-boot
 u-boot.srec:	u-boot
 		$(OBJCOPY) ${OBJCFLAGS} -O srec $< $@
 
+ifeq ($(MT7621_MP), y)
+ifeq ($(CFG_ENV_IS), IN_NAND)
+uboot_a.bin:	uboot.bin mt7621_stage_L2.bin
+		cp mt7621_stage_L2.bin uboot_a.bin
+ifeq ($(MT7621_CPU_800MHZ), y)
+		echo "0 725a00c0"|xxd -r|dd bs=1 seek=32 of=uboot_a.bin conv=notrunc
+endif
+ifeq ($(MT7621_CPU_900MHZ), y)
+		echo "0 c25a00c0"|xxd -r|dd bs=1 seek=32 of=uboot_a.bin conv=notrunc
+endif
+ifeq ($(MT7621_CPU_875MHZ), y)
+		echo "0 224a00c0"|xxd -r|dd bs=1 seek=32 of=uboot_a.bin conv=notrunc
+endif
+ifeq ($(DDR_ACT_SETTING), y)		
+		./mt7621_ddr.sh uboot_a.bin uboot_a.bin mt7621_ddr_param.txt $(DDR_CHIP) $(CFG_ENV_IS)
+		echo "0 10"|xxd -r|dd bs=1 count=1 seek=38 of=uboot_a.bin conv=notrunc
+endif
+		echo "0 $(MT7621_DDR_SPEED)"|xxd -r|dd bs=1 count=1 seek=39 of=uboot_a.bin conv=notrunc
+#SLT baudrate echo "0 00c20100"|xxd -r|dd bs=1 seek=304 of=uboot_a.bin conv=notrunc
+		chmod 777 uboot_a.bin
+		dd if=uboot.bin of=uboot_a.bin bs=1 count=$(shell stat -c %s uboot.bin) \
+		seek=$(shell echo "(($(shell stat -c %s mt7621_stage_L2.bin)+4095)/4096)*4096-64" |bc) conv=notrunc
+		cp uboot_a.bin uboot.bin
+else
+uboot_a.bin:	uboot.bin mt7621_stage_sram.bin
+		cp uboot.bin uboot_a.bin
+		chmod 777 uboot_a.bin
+		dd if=mt7621_stage_sram.bin of=uboot_a.bin bs=1 count=$(shell stat -c %s mt7621_stage_sram.bin) \
+		seek=$(shell stat -c %s uboot.bin)
+ifeq ($(MT7621_CPU_800MHZ), y)
+		echo "0 725a00c0"|xxd -r|dd bs=1 of=uboot_a.bin seek=$(shell echo "(($(shell stat -c %s uboot.bin)+32))" |bc)  conv=notrunc
+endif
+ifeq ($(MT7621_CPU_900MHZ), y)
+		echo "0 c25a00c0"|xxd -r|dd bs=1 of=uboot_a.bin seek=$(shell echo "(($(shell stat -c %s uboot.bin)+32))" |bc)  conv=notrunc
+endif
+ifeq ($(MT7621_CPU_875MHZ), y)
+		echo "0 224a00c0"|xxd -r|dd bs=1 of=uboot_a.bin seek=$(shell echo "(($(shell stat -c %s uboot.bin)+32))" |bc)  conv=notrunc
+
+endif
+		echo "0 $(MT7621_DDR_SPEED)"|xxd -r|dd bs=1 count=1 of=uboot_a.bin seek=$(shell echo "(($(shell stat -c %s uboot.bin)+39))" |bc) conv=notrunc	
+ifeq ($(DDR_ACT_SETTING), y)	
+		./mt7621_ddr.sh uboot_a.bin uboot_a.bin mt7621_ddr_param.txt $(DDR_CHIP) $(CFG_ENV_IS)
+		echo "0 10"|xxd -r|dd bs=1 count=1 of=uboot_a.bin seek=$(shell echo "(($(shell stat -c %s uboot.bin)+38))" |bc) conv=notrunc
+endif
+#SLT baudrate echo "0 00c20100"|xxd -r|dd bs=1 of=uboot_a.bin seek=$(shell echo "(($(shell stat -c %s uboot.bin)+304))" |bc) conv=notrunc
+		
+		mv uboot_a.bin uboot.bin
+endif		
+endif
+
 uboot.bin:	u-boot
 		$(OBJCOPY) ${OBJCFLAGS} -O binary $< $@
 
-
-		@echo ""
-		@echo "===============<<IMPORTANT>>=================="
-ifeq ($(ON_BOARD_NAND_FLASH_COMPONENT),y)
-		@echo "Notes:Uboot firmware is uboot.img NOT uboot.bin"
-endif
-ifeq ($(ON_BOARD_NOR_FLASH_COMPONENT),y)
-		@echo "Notes:Uboot firmware is uboot.bin NOT uboot.img"
-endif
-ifeq ($(ON_BOARD_SPI_FLASH_COMPONENT),y)
-ifeq ($(UBOOT_ROM),y)
-		@echo "Notes:Uboot firmware is uboot.bin NOT uboot.img"
-else
-ifeq ($(UBOOT_RAM),y)
-		@echo "Notes:Uboot firmware in flash is uboot.img NOT uboot.bin"
-endif
-endif
-endif
-		@echo "================================================"
-		@echo ""
-
+ifneq ($(MT7621_MP), y)
 uboot.img:	uboot.bin
 ifeq ($(CFG_ENV_IS), IN_SPI)
 		./tools/mkimage -A $(ARCH) -T standalone -C none \
@@ -251,16 +298,53 @@ ifeq ($(CFG_ENV_IS), IN_SPI)
 		-r $(DRAM_TYPE) -s $(DRAM_TOTAL_WIDTH) -t $(DRAM_SIZE) -u $(DRAM_WIDTH) \
 		-y $(DRAM_SYSCFG0) -z $(DRAM_SYSCFG1) -w $(CPU_PLL_CFG) -d $< $@
 endif
+else
+uboot.img:	uboot_a.bin
+endif
 #ifeq ($(CFG_ENV_IS), IN_NAND)
 #		$(MAKE) -C stage1
 #endif
 ifeq ($(CFG_ENV_IS), IN_NAND)
+ifneq ($(MT7621_MP), y)
 		./tools/mkimage -A $(ARCH) -T standalone -C none \
 		-a $(TEXT_BASE) -e $(shell readelf -h u-boot | grep "Entry" | awk '{print $$4}') \
 		-n "$(shell echo $(CFG_ENV_IS) | sed -e 's/IN_//') Flash Image" \
 		-r $(DRAM_TYPE) -s $(DRAM_TOTAL_WIDTH) -t $(DRAM_SIZE) -u $(DRAM_WIDTH) \
 		-y $(DRAM_SYSCFG0) -z $(DRAM_SYSCFG1) -d $< $@
+else
+		./tools/mkimage -A $(ARCH) -T standalone -C none \
+		-a $(TEXT_BASE) -e $(shell readelf -h u-boot | grep "Entry" | awk '{print $$4}') \
+		-n "$(shell echo $(CFG_ENV_IS) | sed -e 's/IN_//') Flash Image" \
+		-r $(DRAM_TYPE) -s $(DRAM_TOTAL_WIDTH) -t $(DRAM_SIZE) -u $(DRAM_WIDTH) \
+		-y $(shell echo "40") \
+		-z $(shell echo "obase=16;(($(shell stat -c %s mt7621_stage_L2.bin)+64+4095)/4096)*4096" |bc) -d $< $@
+		@rm -fr uboot_a.bin
 endif
+endif
+
+		@echo ""
+		@echo "===============<<IMPORTANT>>=================="
+ifeq ($(ON_BOARD_NAND_FLASH_COMPONENT),y)
+		@echo "Notes:Uboot firmware is uboot.img NOT uboot.bin"
+		rm uboot.bin
+endif
+ifeq ($(ON_BOARD_NOR_FLASH_COMPONENT),y)
+		@echo "Notes:Uboot firmware is uboot.bin NOT uboot.img"
+		rm uboot.img
+endif
+ifeq ($(ON_BOARD_SPI_FLASH_COMPONENT),y)
+ifeq ($(UBOOT_ROM),y)
+		@echo "Notes:Uboot firmware is uboot.bin NOT uboot.img"
+		rm uboot.img
+else
+ifeq ($(UBOOT_RAM),y)
+		@echo "Notes:Uboot firmware in flash is uboot.img NOT uboot.bin"
+		rm uboot.bin
+endif
+endif
+endif
+		@echo "================================================"
+		@echo ""
 
 u-boot.dis:	u-boot
 		$(OBJDUMP) -d $< > $@
@@ -1722,12 +1806,12 @@ clean:
 	rm -f board/cray/L1/bootscript.c board/cray/L1/bootscript.image
 	rm -f board/trab/trab_fkt
 	rm -f stage1/stage2.bin stage1/stage1n2.elf stage1/stage1n2.map
-	rm -f ./uboot.bin ./uboot.img ./u-boot ./u-boot.*
+	rm -f ./uboot.bin ./uboot.img ./u-boot ./u-boot.* ./uboot_a.bin ./System.map
 	rm -f scripts/lxdialog/lxdialog
 
 clobber:	clean
 	find . -type f \( -name .depend \
-		-o -name '*.srec' -o -name '*.bin' -o -name u-boot.img \) \
+		-o -name '*.srec' -o -name 'uboot.bin' -o -name u-boot.img \) \
 		-print0 \
 		| xargs -0 rm -f
 	rm -f $(OBJS) *.bak tags TAGS

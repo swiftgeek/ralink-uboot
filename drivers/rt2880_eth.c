@@ -72,7 +72,7 @@
 /*
  * Ethernet chip registers.RT2880
  */
-#if defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD)
+#if defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD) || defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 
 #define PDMA_RELATED		0x0800
 /* 1. PDMA */
@@ -197,6 +197,8 @@
 #define GDMA1_MAC_ADRL      (RALINK_FRAME_ENGINE_BASE + GDMA1_RELATED + 0x08)
 #define GDMA1_MAC_ADRH      (RALINK_FRAME_ENGINE_BASE + GDMA1_RELATED + 0x0C)
 #elif defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+
+#define PAD_RGMII2_MDIO_CFG            RALINK_SYSCTL_BASE + 0x58
 
 #define GDMA1_RELATED       0x0500
 #define GDMA1_FWD_CFG       (RALINK_FRAME_ENGINE_BASE + GDMA1_RELATED + 0x00)
@@ -713,8 +715,7 @@ static int rt2880_eth_init(struct eth_device* dev, bd_t* bis)
 
 
 #if defined (RT6855A_ASIC_BOARD) || (RT6855A_FPGA_BOARD) ||\
-    defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)  || \
-    defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD) 
+    defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
 void IsSwitchVlanTableBusy(void)
 {
 	int j = 0;
@@ -730,6 +731,23 @@ void IsSwitchVlanTableBusy(void)
 	if (j == 20)
 	    printf("set vlan timeout.\n");
 }
+#elif defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+void IsSwitchVlanTableBusy(void)
+{
+	int j = 0;
+	unsigned int value = 0;
+
+	for (j = 0; j < 20; j++) {
+	    mii_mgr_read(31, 0x90, &value);
+	    if ((value & 0x80000000) == 0 ){ //table busy
+		break;
+	    }
+	    udelay(70000);
+	}
+	if (j == 20)
+	    printf("set vlan timeout value=0x%x.\n", value);
+}
+
 #endif
 
 
@@ -797,7 +815,8 @@ void LANWANPartition(void)
 
 #if defined (RT3052_ASIC_BOARD) || defined (RT3052_FPGA_BOARD) || \
     defined (RT3352_ASIC_BOARD) || defined (RT3352_FPGA_BOARD) || \
-    defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD)
+    defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD) || \
+    defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 #ifdef RALINK_DEMO_BOARD_PVLAN
 	//WLLLL, wan at P0, demo board
 	*((volatile u32 *)(RALINK_ETH_SW_BASE + 0x40)) = 0x1002; //PVID
@@ -815,8 +834,7 @@ void LANWANPartition(void)
 #endif // (RT3052_ASIC_BOARD || RT3052_FPGA_BOARD || RT3352_ASIC_BOARD || RT3352_FPGA_BOARD)
 
 #if defined (RT6855A_ASIC_BOARD) || (RT6855A_FPGA_BOARD) ||\
-    defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)  || \
-    defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+    defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
 
 #ifdef RALINK_DEMO_BOARD_PVLAN
 	//WLLLL, wan at P0, demo board
@@ -873,10 +891,77 @@ void LANWANPartition(void)
 	IsSwitchVlanTableBusy();
 #endif
 
+#elif defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+/*TODO: check MT7530 */
+#ifdef RALINK_DEMO_BOARD_PVLAN
+	printf("set LAN/WAN WLLLL\n");
+	//WLLLL, wan at P0, demo board
+	//LAN/WAN ports as security mode
+	mii_mgr_write(31, 0x2004, 0xff0003);//port0
+	mii_mgr_write(31, 0x2104, 0xff0003);//port1
+	mii_mgr_write(31, 0x2204, 0xff0003);//port2
+	mii_mgr_write(31, 0x2304, 0xff0003);//port3
+	mii_mgr_write(31, 0x2404, 0xff0003);//port4
+	//mii_mgr_write(31, 0x2504, 0xff0003);//port5
+	//mii_mgr_write(31, 0x2604, 0xff0003);//port5
+
+	//set PVID
+	mii_mgr_write(31, 0x2014, 0x10002);//port0
+	mii_mgr_write(31, 0x2114, 0x10001);//port1
+	mii_mgr_write(31, 0x2214, 0x10001);//port2
+	mii_mgr_write(31, 0x2314, 0x10001);//port3
+	mii_mgr_write(31, 0x2414, 0x10001);//port4
+	//mii_mgr_write(31, 0x2514, 0x10001);//port5
+	//mii_mgr_write(31, 0x2614, 0x10001);//port6
+	/*port6 ??*/
+	//VLAN member
+	IsSwitchVlanTableBusy();
+	mii_mgr_write(31, 0x94, 0x407e0001);//VAWD1
+	mii_mgr_write(31, 0x90, 0x80001001);//VTCR, VID=1
+	IsSwitchVlanTableBusy();
+
+	mii_mgr_write(31, 0x94, 0x40610001);//VAWD1
+	mii_mgr_write(31, 0x90, 0x80001002);//VTCR, VID=2
+	IsSwitchVlanTableBusy();
+#endif
+#ifdef RALINK_EV_BOARD_PVLAN
+	printf("set LAN/WAN LLLLW\n");
+	//LLLLW, wan at P4, ev board
+	//LAN/WAN ports as security mode
+	mii_mgr_write(31, 0x2004, 0xff0003);//port0
+	mii_mgr_write(31, 0x2104, 0xff0003);//port1
+	mii_mgr_write(31, 0x2204, 0xff0003);//port2
+	mii_mgr_write(31, 0x2304, 0xff0003);//port3
+	mii_mgr_write(31, 0x2404, 0xff0003);//port4
+	mii_mgr_write(31, 0x2504, 0xff0003);//port5
+	mii_mgr_write(31, 0x2604, 0xff0003);//port6
+
+	//set PVID
+	mii_mgr_write(31, 0x2014, 0x10001);//port0
+	mii_mgr_write(31, 0x2114, 0x10001);//port1
+	mii_mgr_write(31, 0x2214, 0x10001);//port2
+	mii_mgr_write(31, 0x2314, 0x10001);//port3
+	mii_mgr_write(31, 0x2414, 0x10002);//port4
+	mii_mgr_write(31, 0x2514, 0x10001);//port5
+	mii_mgr_write(31, 0x2614, 0x10001);//port6
+
+
+	//VLAN member
+	IsSwitchVlanTableBusy();
+	//mii_mgr_write(31, 0x94, 0x407e0001);//VAWD1
+	mii_mgr_write(31, 0x94, 0x404f0001);//VAWD1
+	mii_mgr_write(31, 0x90, 0x80001001);//VTCR, VID=1
+	IsSwitchVlanTableBusy();
+	
+	//mii_mgr_write(31, 0x94, 0x40610001);//VAWD1
+	mii_mgr_write(31, 0x94, 0x40500001);//VAWD1
+	mii_mgr_write(31, 0x90, 0x80001002);//VTCR, VID=2
+	IsSwitchVlanTableBusy();
+#endif
 #endif
 }
 
-#if defined (P5_RGMII_TO_MAC_MODE) || defined (MAC_TO_VITESSE_MODE)
+#if defined (P5_RGMII_TO_MAC_MODE) || defined (MAC_TO_VITESSE_MODE) || defined (MAC_TO_MT7530_MODE)
 static void ResetSWusingGPIOx(void)
 {
 #ifdef GPIOx_RESET_MODE
@@ -963,7 +1048,7 @@ static void ResetSWusingGPIOx(void)
 
 #elif defined (RT3883_ASIC_BOARD)
 	printf("\n GPIO pin 24 reset to switch\n");
-
+	/* MT7530 reset timing at least 2ms*/
 	//Set Gpio pin 24 to output
 	value = le32_to_cpu(*(volatile u_long *)PIODIR3924_R);
 	value |= 1;
@@ -981,6 +1066,32 @@ static void ResetSWusingGPIOx(void)
 	*(volatile u_long *)(PIODATA3924_R) = cpu_to_le32(value);
 #elif defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD) 
 	/* TODO */
+#elif defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD) 
+	printf("\n GPIO pin 10 reset to switch\n");
+	/* MT7530 reset timing at least 2ms*/
+	//set spi/gpio share pin to gpio mode
+	value = le32_to_cpu(*(volatile u_long *)RT2880_GPIOMODE_REG);
+	value |= (1 << 1);
+	*(volatile u_long *)(RT2880_GPIOMODE_REG) = cpu_to_le32(value);
+
+	//Set Gpio pin 10 to output
+	value = le32_to_cpu(*(volatile u_long *)PIODIR_R);
+	value |= (1 << 10);
+	*(volatile u_long *)(PIODIR_R) = cpu_to_le32(value);
+
+	//Set Gpio pin 10 to low
+	value = le32_to_cpu(*(volatile u_long *)PIODATA_R);
+	value &= ~(1 << 10);
+	*(volatile u_long *)(PIODATA_R) = cpu_to_le32(value);
+	
+	udelay(10000);
+	//Set Gpio pin 10 to high
+	value = le32_to_cpu(*(volatile u_long *)PIODATA_R);
+	value |= (1 << 10);
+	*(volatile u_long *)(PIODATA_R) = cpu_to_le32(value);
+
+#elif defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD) 
+	/* TODO: reset MT7530 switch */
 #else
 #error "Unknown Chip"
 #endif
@@ -1105,7 +1216,18 @@ void enable_auto_negotiate(void)
 	u32 regValue;
 	u32 addr = MAC_TO_GIGAPHY_MODE_ADDR;	// define in config.mk
 
+#if defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD)
+	//enable MDIO mode all the time
+	regValue = le32_to_cpu(*(volatile u_long *)(RALINK_SYSCTL_BASE + 0x60));
+	regValue &= ~(0x3 << 12);
+        *(volatile u_long *)(RALINK_SYSCTL_BASE + 0x60) = regValue;
+#endif
+
+#if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+	regValue = le32_to_cpu(*(volatile u_long *)(RALINK_ETH_SW_BASE+0x0000));
+#else
 	regValue = le32_to_cpu(*(volatile u_long *)(RALINK_ETH_SW_BASE+0x7000));
+#endif
 	regValue |= (1<<31);
 	regValue &= ~(0x1f);
 	regValue &= ~(0x1f<<8);
@@ -1117,7 +1239,7 @@ void enable_auto_negotiate(void)
 	regValue |= (addr << 0);// setup PHY address for auto polling (start Addr).
 	regValue |= ((addr+1) << 8);// setup PHY address for auto polling (End Addr).
 #else
-	regValue |= ((addr-1) << 0);// setup PHY address for auto polling (start Addr).
+	regValue |= ((addr-1)&0x1f << 0);// setup PHY address for auto polling (start Addr).
 	regValue |= (addr << 8);// setup PHY address for auto polling (End Addr).
 #endif
 #else
@@ -1288,7 +1410,9 @@ void rt6855A_gsw_init(void)
 #if defined (RT6855A_ASIC_BOARD)
 #if defined (P5_RGMII_TO_MAC_MODE)
 	RALINK_REG(RALINK_ETH_SW_BASE+0x3500) = 0x5e33b; ////(P5, Force mode, Link Up, 1000Mbps, Full-Duplex, FC ON)
-	RALINK_REG(RALINK_ETH_SW_BASE+0x7014) = 0x1f000c;//TX/RX CLOCK Phase select
+	RALINK_REG(RALINK_ETH_SW_BASE+0x7014) = 0x1f0c000c;//disable port0-port4 internal phy, set phy base address to 12
+	RALINK_REG(RALINK_ETH_SW_BASE+0x250c) = 0x000fff10;//disable port5 mac learning
+	RALINK_REG(RALINK_ETH_SW_BASE+0x260c) = 0x000fff10;//disable port6 mac learning
 #elif defined (P5_MII_TO_MAC_MODE)
 	RALINK_REG(RALINK_ETH_SW_BASE+0x3500) = 0x5e337; ////(P5, Force mode, Link Up, 100Mbps, Full-Duplex, FC ON)
 #elif defined (P5_MAC_TO_PHY_MODE)
@@ -1337,7 +1461,10 @@ void rt_gsw_init(void)
 	u32	i = 0;
 	u32	phy_val = 0;
 	u32     rev = 0;
-	u32 is_BGA = 0;
+	u32	is_BGA = 0;
+#if defined (P5_RGMII_TO_MAC_MODE)
+	u32	regValue;
+#endif
 #if defined (RT6855_FPGA_BOARD) || defined (MT7620_FPGA_BOARD)
 	/*keep dump switch mode */
 	RALINK_REG(RALINK_ETH_SW_BASE+0x3000) = 0x5e333;//(P0, Force mode, Link Up, 10Mbps, Full-Duplex, FC ON)
@@ -1456,9 +1583,43 @@ void rt_gsw_init(void)
 	RALINK_REG(RALINK_ETH_SW_BASE+0x3600) = 0x5e33b;//CPU Port6 Force Link 1G, FC ON
 	RALINK_REG(RALINK_ETH_SW_BASE+0x0010) = 0x7f7f7fe0;//CPU exist in port 6
 #if defined (P5_RGMII_TO_MAC_MODE)
+	*(unsigned long *)(0xb0000060) &= ~(3 << 7); //set MDIO to Normal mode
+
 	RALINK_REG(RALINK_ETH_SW_BASE+0x3500) = 0x5e33b; ////(P5, Force mode, Link Up, 1000Mbps, Full-Duplex, FC ON)
+	RALINK_REG(RALINK_ETH_SW_BASE+0x7014) = 0x1f0c000c;//disable port0-port4 internal phy, set phy base address to 12
 	RALINK_REG(0xb0000060) &= ~(1 << 9); //set RGMII to Normal mode
 	RALINK_REG(RT2880_SYSCFG1_REG) &= ~(0x3<<12); ////GE1_MODE=RGMii Mode
+	
+	/*HW RESET MT7530*/
+	ResetSWusingGPIOx();
+	udelay(125000);
+
+	for(i=0;i<=4;i++) 
+	{	
+	       //turn off PHY
+	       mii_mgr_read(i, 0x0 ,&regValue);
+	       regValue |= (0x1<<11);
+               mii_mgr_write(i, 0x0, regValue);
+
+	}
+	mii_mgr_write(31, 0x3500, 0x8000);
+	mii_mgr_write(31, 0x3600, 0x8000);//force MAC link down before reset
+
+
+	/*Init MT7530, we use MT7530 as default external switch*/
+	mii_mgr_write(31, 0x7000, 0x3);//reset MT7530
+	printf("#Reset_MT7530\n");
+	udelay(100);
+	
+	for(i=0;i<=4;i++) 
+	{	
+	       //turn on PHY
+	       mii_mgr_read(i, 0x0 ,&regValue);
+	       regValue &= ~(0x1<<11);
+               mii_mgr_write(i, 0x0, regValue);
+	}
+	mii_mgr_write(31, 0x3600, 0x5e33b);//MT7530 P6 force 1G
+	mii_mgr_write(31, 0x7804, 0x1117ccf);//MT7530 P5 disable
 #elif defined (P5_MII_TO_MAC_MODE)
 	RALINK_REG(RALINK_ETH_SW_BASE+0x3500) = 0x5e337; ////(P5, Force mode, Link Up, 100Mbps, Full-Duplex, FC ON)
 	RALINK_REG(0xb0000060) &= ~(1 << 9); //set RGMII to Normal mode
@@ -1590,7 +1751,8 @@ void rt6855A_eth_gpio_reset(void)
 
 #if defined (RT3052_ASIC_BOARD) || defined (RT3052_FPGA_BOARD) || \
     defined (RT3352_ASIC_BOARD) || defined (RT3352_FPGA_BOARD) || \
-    defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD)
+    defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD) || \
+    defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 void rt305x_esw_init(void)
 {
 	u32	i;
@@ -1619,11 +1781,11 @@ void rt305x_esw_init(void)
 #endif
 	RALINK_REG(RALINK_ETH_SW_BASE+0x008C) = 0x02404040; 
 
-#if defined (RT3052_ASIC_BOARD) || defined (RT3352_ASIC_BOARD) || defined (RT5350_ASIC_BOARD) 
+#if defined (RT3052_ASIC_BOARD) || defined (RT3352_ASIC_BOARD) || defined (RT5350_ASIC_BOARD) || defined (MT7628_ASIC_BOARD)
 	RALINK_REG(RALINK_ETH_SW_BASE+0x00C8) = 0x3f502b28; //Ext PHY Addr=0x1F 
 	RALINK_REG(RALINK_ETH_SW_BASE+0x0084) = 0x00000000;
 	RALINK_REG(RALINK_ETH_SW_BASE+0x0110) = 0x7d000000; //1us cycle number=125 (FE's clock=125Mhz)
-#elif defined (RT3052_FPGA_BOARD) || defined (RT3352_FPGA_BOARD) || defined (RT5350_FPGA_BOARD) 
+#elif defined (RT3052_FPGA_BOARD) || defined (RT3352_FPGA_BOARD) || defined (RT5350_FPGA_BOARD) || defined (MT7628_FPGA_BOARD)
 
 	RALINK_REG(RALINK_ETH_SW_BASE+0x00C8) = 0x00f03ff9; //polling Ext PHY Addr=0x0, force port5 as 100F/D (disable auto-polling)
 	RALINK_REG(RALINK_ETH_SW_BASE+0x0084) = 0xffdf1f00;
@@ -1720,7 +1882,7 @@ void rt305x_esw_init(void)
 
 #define RSTCTRL_EPHY_RST	(1<<24)
 	/* We shall prevent modifying PHY registers if it is FPGA mode */
-#if defined (RT3052_ASIC_BOARD) || defined (RT3352_ASIC_BOARD) || defined (RT5350_ASIC_BOARD)
+#if defined (RT3052_ASIC_BOARD) || defined (RT3352_ASIC_BOARD) || defined (RT5350_ASIC_BOARD) || defined (MT7628_ASIC_BOARD)
 #if defined (RT3052_ASIC_BOARD)
 
 	rw_rf_reg(0, 0, &phy_val);
@@ -1850,7 +2012,7 @@ void rt305x_esw_init(void)
 	    phy_val |= 0x0001;
 	    mii_mgr_write(i, 26, phy_val);
 	}
-#elif defined (RT5350_ASIC_BOARD)
+#elif defined (RT5350_ASIC_BOARD) || defined (MT7628_ASIC_BOARD)
         //PHY IOT
     // reset phy
     i = RALINK_REG(RT2880_RSTCTRL_REG);
@@ -1897,6 +2059,185 @@ void rt305x_esw_init(void)
 }
 #endif
 
+
+#if defined (RT3883_ASIC_BOARD) && defined (MAC_TO_MT7530_MODE)
+void rt3883_gsw_init(void)
+{
+	printf("\n MT7530 Giga Switch support \n");
+	//RALINK_REG(MDIO_CFG)=cpu_to_le32((u32)(0x1F01DC41)); /*GE1 Force 1G/FC ON/MDIO 2Mhz*/
+	RALINK_REG(MDIO_CFG)=cpu_to_le32((u32)(0x1F01DC01)); /*GE1 Force 1G/FC ON/MDIO 4Mhz*/
+	//enable_auto_negotiate();
+	ResetSWusingGPIOx();
+	udelay(125000);
+
+	mii_mgr_write(31, 0x3500, 0x5e33b);//MT7530 P5 force 1G
+	mii_mgr_write(31, 0x7804, 0x1017d8f);//MT7530 HW TRAP,  P6 disable, P5 RGMII GMAC5
+}
+#endif
+#if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)	
+void setup_internal_gsw(void)
+{
+	u32	i;
+	u32	regValue;
+
+	/* reduce MDIO PAD driving strength */
+	regValue = RALINK_REG(PAD_RGMII2_MDIO_CFG);
+	regValue &= ~(0x3<<4);	// reduce Tx driving strength to 2mA (WDT_E4_E2)
+	RALINK_REG(PAD_RGMII2_MDIO_CFG) = regValue;
+  
+
+	for(i=0;i<=4;i++) 
+	{	
+	       //turn off PHY
+	       mii_mgr_read(i, 0x0 ,&regValue);
+	       regValue |= (0x1<<11);
+               mii_mgr_write(i, 0x0, regValue);
+
+	}
+	mii_mgr_write(31, 0x3500, 0x8000);
+	mii_mgr_write(31, 0x3600, 0x8000);//force MAC link down before reset
+
+	mii_mgr_write(31, 0x7000, 0x3);//reset MT7530
+	printf("#Reset_MT7530\n");
+	udelay(5);
+	
+
+#ifdef MT7621_USE_GE1
+#if defined (MT7621_ASIC_BOARD)	
+	RALINK_REG(RALINK_ETH_SW_BASE+0x100) = 0x2005e33b;//(GE1, Force 1000M/FD, FC ON)
+	mii_mgr_write(31, 0x3600, 0x5e30b);//PDMA is not ready,disable FC, Prevent HOL
+	mii_mgr_write(31, 0x3500, 0x8000);
+
+
+#elif defined (MT7621_FPGA_BOARD)
+	RALINK_REG(RALINK_ETH_SW_BASE+0x100) = 0x2005e337;//(GE1, Force 100M/FD, FC ON)
+	mii_mgr_write(31, 0x3600, 0x5e337);
+#endif
+	RALINK_REG(RALINK_ETH_SW_BASE+0x200) = 0x00008000;// GE2, down
+	
+	RALINK_REG(GDMA1_FWD_CFG) = 0x20710000;
+	RALINK_REG(GDMA2_FWD_CFG) = 0x20717777;
+
+	/* Enable MT7530 Port 6 */
+	regValue = 0x117ccf; //Enable Port 6 only
+	mii_mgr_write(31, 0x7804 ,regValue);
+
+
+#elif defined MT7621_USE_GE2
+	RALINK_REG(RALINK_ETH_SW_BASE+0x100) = 0x000008000;//(GE1, Force LinkDown)
+	mii_mgr_write(31, 0x3500, 0x56300); //MT7530 P5 AN
+	RALINK_REG(RALINK_ETH_SW_BASE+0x200) = 0x20056300;// GE2, auto-polling
+	
+
+	/* Set MT7530 Port 0/4 to PHY mode */
+	mii_mgr_read(31, 0x7804 ,&regValue);
+#if defined GE_RGMII_INTERNAL_P0_AN 
+	regValue &= ~((1<<13)|(1<<6));
+	regValue |= ((1<<7)|(1<<16)|(1<<20));
+#elif defined GE_RGMII_INTERNAL_P4_AN 
+	regValue &= ~((1<<13)|(1<<6)|(1<20));
+	regValue |= ((1<<7)|(1<<16));
+#endif
+	mii_mgr_write(31, 0x7804 ,regValue);
+
+	enable_auto_negotiate();
+
+	RALINK_REG(GDMA1_FWD_CFG) = 0x20717777;
+	RALINK_REG(GDMA2_FWD_CFG) = 0x20710000;
+#endif
+
+	regValue = RALINK_REG(RALINK_SYSCTL_BASE + 0x10);
+	regValue = (regValue >> 6) & 0x7;
+	if(regValue >= 6) { //25 Mhz Xtal
+		/* do nothing */
+	} else if(regValue >= 3) { //40Mhz Xtal
+	    mii_mgr_write(0, 13, 0x1f);  // disable MT7530 core clock
+	    mii_mgr_write(0, 14, 0x410);
+	    mii_mgr_write(0, 13, 0x401f);
+	    mii_mgr_write(0, 14, 0x0);
+
+	    mii_mgr_write(0, 13, 0x1f);  // disable MT7530 PLL
+	    mii_mgr_write(0, 14, 0x40d);
+	    mii_mgr_write(0, 13, 0x401f);
+	    mii_mgr_write(0, 14, 0x2020);
+
+	    mii_mgr_write(0, 13, 0x1f);  // for MT7530 core clock = 500Mhz
+	    mii_mgr_write(0, 14, 0x40e);
+	    mii_mgr_write(0, 13, 0x401f);
+	    mii_mgr_write(0, 14, 0x119);
+
+	    mii_mgr_write(0, 13, 0x1f);  // enable MT7530 PLL
+	    mii_mgr_write(0, 14, 0x40d);
+	    mii_mgr_write(0, 13, 0x401f);
+	    mii_mgr_write(0, 14, 0x2820);
+
+	    udelay(20); //suggest by CD
+
+	    mii_mgr_write(0, 13, 0x1f);  // enable MT7530 core clock
+	    mii_mgr_write(0, 14, 0x410);
+	    mii_mgr_write(0, 13, 0x401f);
+	    mii_mgr_write(0, 14, 0x1);
+	} else { //20 Mhz Xtal
+
+		/* TODO */
+
+	}
+/*Tx Driving*/
+	mii_mgr_write(31, 0x7a54, 0x44);  //lower driving
+	mii_mgr_write(31, 0x7a5c, 0x44);  //lower driving
+	mii_mgr_write(31, 0x7a64, 0x44);  //lower driving
+	mii_mgr_write(31, 0x7a6c, 0x44);  //lower driving
+	mii_mgr_write(31, 0x7a74, 0x44);  //lower driving
+	mii_mgr_write(31, 0x7a7c, 0x44);  //lower driving
+
+	for(i=0;i<=4;i++) 
+	{	
+	       //turn on PHY
+	       mii_mgr_read(i, 0x0 ,&regValue);
+	       regValue &= ~(0x1<<11);
+               mii_mgr_write(i, 0x0, regValue);
+	}
+
+
+
+#ifdef MT7621_USE_GE2
+#if 1
+	mii_mgr_write(31, 0x7b00, 0x102);  //delay detting for 10/1000M
+	mii_mgr_write(31, 0x7b04, 0x14);  //delay setting for 10/1000M
+#else
+	mii_mgr_write(31, 0x7b00, 8);  // for 100M
+	mii_mgr_write(31, 0x7b04, 0x14);  // for 100M
+#endif
+#endif
+
+
+
+/*GE2 delay setting only for 1G/10M => turn off 100M for USE_GE2*/
+#ifdef MT7621_USE_GE2
+	for(i=0;i<=4;i++) {	
+	       mii_mgr_read(i, 4, &regValue);
+	       regValue &= ~(3<<7); //turn off 100Base-T Advertisement
+               mii_mgr_write(i, 4, regValue);
+
+		//mii_mgr_read(i, 9, &regValue);
+                //regValue &= ~(3<<8); //turn off 1000Base-T Advertisement
+                //mii_mgr_write(i, 9, regValue);
+
+		//restart AN
+		mii_mgr_read(i, 0, &regValue);
+		regValue |= (1 << 9);
+		mii_mgr_write(i, 0, regValue);
+	}
+#endif
+	mii_mgr_read(31, 0x7808 ,&regValue);
+	regValue |= (3<<16); //Enable INTR
+	mii_mgr_write(31, 0x7808 ,regValue);
+}
+#endif
+
+
+
+
 static int rt2880_eth_setup(struct eth_device* dev)
 {
 	u32	i;
@@ -1911,16 +2252,16 @@ static int rt2880_eth_setup(struct eth_device* dev)
 	printf("done\n\n");
 
 
-// GigaPhy
+	// Case1: RT288x/RT3883/MT7621 GE + GigaPhy
 #if defined (MAC_TO_GIGAPHY_MODE) 
 	enable_auto_negotiate();
 	if (isMarvellGigaPHY(1)) {
-#if defined (RT3883_FPGA_BOARD) || defined (MT7621_FPGA_BOARD)
+#if defined (RT3883_FPGA_BOARD)
+		printf("\n Reset MARVELL phy\n");
 		mii_mgr_read(MAC_TO_GIGAPHY_MODE_ADDR, 9, &regValue);
 		regValue &= ~(3<<8); //turn off 1000Base-T Advertisement
 		mii_mgr_write(MAC_TO_GIGAPHY_MODE_ADDR, 9, regValue);
-#endif
-		printf("\n Reset MARVELL phy\n");
+
 		mii_mgr_read(MAC_TO_GIGAPHY_MODE_ADDR, 20, &regValue);
 		regValue |= 1<<7; //Add delay to RX_CLK for RXD Outputs
 		mii_mgr_write(MAC_TO_GIGAPHY_MODE_ADDR, 20, regValue);
@@ -1928,6 +2269,15 @@ static int rt2880_eth_setup(struct eth_device* dev)
 		mii_mgr_read(MAC_TO_GIGAPHY_MODE_ADDR, 0, &regValue);
 		regValue |= 1<<15; //PHY Software Reset
 		mii_mgr_write(MAC_TO_GIGAPHY_MODE_ADDR, 0, regValue);
+#elif defined (MT7621_FPGA_BOARD)
+		mii_mgr_read(MAC_TO_GIGAPHY_MODE_ADDR, 9, &regValue);
+		regValue &= ~(3<<8); //turn off 1000Base-T Advertisement
+		mii_mgr_write(MAC_TO_GIGAPHY_MODE_ADDR, 9, regValue);
+	    
+		mii_mgr_read(MAC_TO_GIGAPHY_MODE_ADDR, 0, &regValue);
+		regValue |= 1<<9; //restart AN
+		mii_mgr_write(MAC_TO_GIGAPHY_MODE_ADDR, 0, regValue);
+#endif
 	}
 	if (isVtssGigaPHY(1)) {
 		mii_mgr_write(MAC_TO_GIGAPHY_MODE_ADDR, 31, 1);
@@ -1945,35 +2295,28 @@ static int rt2880_eth_setup(struct eth_device* dev)
 		mii_mgr_write(MAC_TO_GIGAPHY_MODE_ADDR, 0, regValue);
 		*/
 	}
-	
-	// MT7621 //
-#if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+#if defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD)
 #ifdef MT7621_USE_GE1
-#if defined (GE_MII_FORCE_100) || defined (GE_RVMII_FORCE_100)
-	RALINK_REG(RALINK_ETH_SW_BASE+0x100) = 0x5e337;//(P0, Force mode, Link Up, 100Mbps, Full-Duplex, FC ON)
-#elif defined (GE_MII_AN) || defined (GE_RGMII_AN)
-	RALINK_REG(RALINK_ETH_SW_BASE+0x100) = 0x56300;//(P0, Auto mode)
-#elif defined (GE_RGMII_FORCE_1000)
-	RALINK_REG(RALINK_ETH_SW_BASE+0x100) = 0x5633b;//(P0, Force mode, Link Up, 1000Mbps, Full-Duplex, FC ON)
-#endif
-#else //MT7621_USE_GE2
-#if defined (GE_MII_FORCE_100) || defined (GE_RVMII_FORCE_100)
-	RALINK_REG(RALINK_ETH_SW_BASE+0x200) = 0x5e337;//(P0, Force mode, Link Up, 100Mbps, Full-Duplex, FC ON)
-#elif defined (GE_MII_AN) || defined (GE_RGMII_AN)
-	RALINK_REG(RALINK_ETH_SW_BASE+0x200) = 0x56300;//(P0, Auto mode)
-#elif defined (GE_RGMII_FORCE_1000)
-	RALINK_REG(RALINK_ETH_SW_BASE+0x200) = 0x5633b;//(P0, Force mode, Link Up, 1000Mbps, Full-Duplex, FC ON)
-#endif
-#endif
-#endif
+	RALINK_REG(RALINK_ETH_SW_BASE+0x100) = 0x20056300;//(P0, Auto mode)
+	RALINK_REG(RALINK_ETH_SW_BASE+0x200) = 0x00008000;//(P1, Down)
+	RALINK_REG(RT2880_SYSCFG1_REG) &= ~(0x3 << 12); //GE1_MODE=RGMII Mode
+	RALINK_REG(0xbe000060) &= ~(1 << 14); //set RGMII1 to Normal mode
+#else
+	RALINK_REG(RALINK_ETH_SW_BASE+0x200) = 0x20056300;//(P1, Auto mode)
+	RALINK_REG(RALINK_ETH_SW_BASE+0x100) = 0x00008000;//(P0, Down)
+	RALINK_REG(RT2880_SYSCFG1_REG) &= ~(0x3 << 14); //GE2_MODE=RGMII Mode
+	RALINK_REG(0xbe000060) &= ~(1 << 15); //set RGMII2 to Normal mode
 
-// RT305x/RT335x + EmbeddedSW
+#endif
+#endif
+	// Case2. RT305x/RT335x/RT6856/MT7620 + EmbeddedSW
 #elif defined (RT3052_ASIC_BOARD) || defined (RT3052_FPGA_BOARD) || \
       defined (RT3352_ASIC_BOARD) || defined (RT3352_FPGA_BOARD) || \
       defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD) || \
       defined (RT6855_ASIC_BOARD) || defined (RT6855_FPGA_BOARD) || \
       defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD) || \
-      defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
+      defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD) || \
+      defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 
 #ifdef P5_RGMII_TO_MAC_MODE
 #if 0 // we don't have such demo board at this moment
@@ -1983,7 +2326,16 @@ static int rt2880_eth_setup(struct eth_device* dev)
 	vtss_init();
 #endif
 #endif
-// RT288x/RT388x + GigaSW
+
+	// Case3: MT7621 + MT7530 GSW
+#elif defined (MAC_TO_MT7530_MODE)
+#if defined (MT7621_FPGA_BOARD) || defined (NT7621_ASIC_BOARD)
+	//enable MDIO
+	RALINK_REG(0xbe000060) &= ~(1 << 12); //set MDIO to Normal mode
+	RALINK_REG(0xbe000060) &= ~(1 << 14); //set RGMII1 to Normal mode
+	RALINK_REG(0xbe000060) &= ~(1 << 15); //set RGMII2 to Normal mode
+#endif
+	// Case4: RT288x/RT388x + Vitesse GigaSW
 #elif defined (MAC_TO_VITESSE_MODE)
 	printf("\n Vitesse giga Mac support \n");
 	RALINK_REG(MDIO_CFG)=cpu_to_le32((u32)(0x1F01DC01));
@@ -1991,7 +2343,7 @@ static int rt2880_eth_setup(struct eth_device* dev)
 	udelay(125000);
 	vtss_init();
 
-// RT288x/RT388x + (10/100 Switch or 100PHY)
+	// Case5. RT288x/RT388x/MT7621 + (10/100 Switch or 100PHY)
 #elif defined (MAC_TO_100SW_MODE) ||  defined (MAC_TO_100PHY_MODE)
 
 #if defined (RT3883_FPGA_BOARD) || defined (RT3883_ASIC_BOARD)
@@ -2017,22 +2369,42 @@ static int rt2880_eth_setup(struct eth_device* dev)
 #endif // RT3883_USE_GE2 //
 
 	RALINK_REG(RT2880_SYSCFG1_REG)=regValue;
-#endif // #if defined (RT3883_FPGA_BOARD) || defined (RT3883_ASIC_BOARD) //
 
+#elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD)
+#ifdef MT7621_USE_GE1
+#if defined (GE_MII_FORCE_100) || defined (GE_RVMII_FORCE_100)
+	RALINK_REG(RALINK_ETH_SW_BASE+0x100) = 0x2005e337;//(P0, Force mode, Link Up, 100Mbps, Full-Duplex, FC ON)
+	RALINK_REG(RT2880_SYSCFG1_REG) &= ~(0x3 << 12); //GE1_MODE=Mii Mode
+	RALINK_REG(RT2880_SYSCFG1_REG) |= (0x1 << 12);
+#elif defined (GE_MII_AN)
+	RALINK_REG(RALINK_ETH_SW_BASE+0x100) = 0x20056300;//(P0, Auto mode)
+	RALINK_REG(RT2880_SYSCFG1_REG) &= ~(0x3 << 12); //GE1_MODE=Mii Mode
+	RALINK_REG(RT2880_SYSCFG1_REG) |= (0x1 << 12);
+	enable_auto_negotiate();
+#endif
+#else //MT7621_USE_GE2
+#if defined (GE_MII_FORCE_100) || defined (GE_RVMII_FORCE_100)
+	RALINK_REG(RALINK_ETH_SW_BASE+0x200) = 0x2005e337;//(P0, Force mode, Link Up, 100Mbps, Full-Duplex, FC ON)
+	RALINK_REG(RT2880_SYSCFG1_REG) &= ~(0x3 << 14); //GE2_MODE=Mii Mode
+	RALINK_REG(RT2880_SYSCFG1_REG) |= (0x1 << 14);
+#elif defined (GE_MII_AN)
+	RALINK_REG(RALINK_ETH_SW_BASE+0x200) = 0x20056300;//(P0, Auto mode)
+	RALINK_REG(RT2880_SYSCFG1_REG) &= ~(0x3 << 14); //GE2_MODE=Mii Mode
+	RALINK_REG(RT2880_SYSCFG1_REG) |= (0x1 << 14);
+	enable_auto_negotiate();
+#endif
+#endif
 
-#elif defined (MAC_TO_100SW_MODE)
+#else // RT288x
 	// due to the flaws of RT2880 GMAC implementation (or IC+ SW ?) we use the
 	// fixed capability instead of auto-polling.
 	RALINK_REG(MDIO_CFG)=cpu_to_le32((u32)(0x1F01BC01));
 
 	//force cpu port is 100F
 	mii_mgr_write(29, 22, 0x8420);
-#elif defined (MAC_TO_100PHY_MODE)
-	enable_auto_negotiate();
-
+#endif
 #endif // MAC_TO_GIGAPHY_MODE //
-
-	LANWANPartition();
+	
 
 #if defined (RT3883_USE_GE2) || defined (MT7621_USE_GE2)
 	wTmp = (u16)dev->enetaddr[0];
@@ -2064,7 +2436,7 @@ static int rt2880_eth_setup(struct eth_device* dev)
 	wTmp = (u16)dev->enetaddr[0];
 	regValue = (wTmp << 8) | dev->enetaddr[1];
 
-#if defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD)
+#if defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD) || defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 	RALINK_REG(SDM_MAC_ADRH)=regValue;
 	// printf("\n dev->iobase=%08X,SDM_MAC_ADRH=%08X\n",dev->iobase,regValue);
 #else
@@ -2077,7 +2449,7 @@ static int rt2880_eth_setup(struct eth_device* dev)
 	regValue = regValue << 16;
 	wTmp = (u16)dev->enetaddr[4];
 	regValue |= (wTmp<<8) | dev->enetaddr[5];
-#if defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD)
+#if defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD) || defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 	RALINK_REG(SDM_MAC_ADRL)=regValue;
 	// printf("\n dev->iobase=%08X,SDM_MAC_ADRL=%08X\n",dev->iobase,regValue);
 #else
@@ -2089,7 +2461,7 @@ static int rt2880_eth_setup(struct eth_device* dev)
 	//	dev->enetaddr[0],dev->enetaddr[1],dev->enetaddr[2],
 	//	dev->enetaddr[3],dev->enetaddr[4],dev->enetaddr[5]);
 
-#if ! defined (RT5350_ASIC_BOARD) && ! defined (RT5350_FPGA_BOARD)
+#if ! defined (RT5350_ASIC_BOARD) && ! defined (RT5350_FPGA_BOARD) && !defined (MT7628_ASIC_BOARD) && !defined (MT7628_FPGA_BOARD)
 	regValue = RALINK_REG(GDMA1_FWD_CFG);
 	//printf("\n old,GDMA1_FWD_CFG = %08X \n",regValue);
 
@@ -2160,7 +2532,6 @@ static int rt2880_eth_setup(struct eth_device* dev)
 #endif
 
 	}
-
 	rxRingSize = NUM_RX_DESC;
 	txRingSize = NUM_TX_DESC;
 
@@ -2211,7 +2582,8 @@ static int rt2880_eth_send(struct eth_device* dev, volatile void *packet, int le
 #if defined (RT3052_FPGA_BOARD) || defined (RT3052_ASIC_BOARD) || \
     defined (RT3352_ASIC_BOARD) || defined (RT3352_FPGA_BOARD) || \
     defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD) || \
-    defined (RT3883_ASIC_BOARD) || defined (RT3883_FPGA_BOARD)
+    defined (RT3883_ASIC_BOARD) || defined (RT3883_FPGA_BOARD) || \
+    defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 	char *p=(char *)packet;
 #endif
 
@@ -2228,7 +2600,8 @@ Retry:
 #if defined (RT3052_FPGA_BOARD) || defined (RT3052_ASIC_BOARD) || \
     defined (RT3352_ASIC_BOARD) || defined (RT3352_FPGA_BOARD) || \
     defined (RT5350_ASIC_BOARD) || defined (RT5350_FPGA_BOARD) || \
-    defined (RT3883_ASIC_BOARD) || defined (RT3883_FPGA_BOARD)
+    defined (RT3883_ASIC_BOARD) || defined (RT3883_FPGA_BOARD) || \
+    defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 #define PADDING_LENGTH 60
 	if (length < PADDING_LENGTH) {
 		//	print_packet(packet,length);

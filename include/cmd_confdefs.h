@@ -32,7 +32,11 @@
  */
 #define CFG_CMD_BDI		0x00000001ULL	/* bdinfo			*/
 #define CFG_CMD_LOADS		0x00000002ULL	/* loads			*/
+#ifdef RALINK_UPGRADE_BY_SERIAL
 #define CFG_CMD_LOADB		0x00000004ULL	/* loadb			*/
+#else
+#define CFG_CMD_LOADB		0x00000000ULL
+#endif
 #define CFG_CMD_IMI		0x00000008ULL	/* iminfo			*/
 #define CFG_CMD_CACHE		0x00000010ULL	/* icache, dcache		*/
 #define CFG_CMD_FLASH		0x00000020ULL	/* flinfo, erase, protect	*/

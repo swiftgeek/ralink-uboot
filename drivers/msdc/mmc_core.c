@@ -552,6 +552,57 @@ static int mmc_cmd(struct mmc_host *host, struct mmc_command *cmd)
         if (err == MMC_ERR_NONE)
             break;    
     } while(retry--);
+#if 0 // chhung
+    u32 val;
+    if (err == MMC_ERR_TIMEOUT) {
+	    printf("\n***** Dump Registers *****\n");
+	    printf("Offset:\tValue\n", RALINK_MSDC_BASE+0x0, MSDC_READ32(RALINK_MSDC_BASE+0x0));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x0, MSDC_READ32(RALINK_MSDC_BASE+0x0));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x4, MSDC_READ32(RALINK_MSDC_BASE+0x4));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x8, MSDC_READ32(RALINK_MSDC_BASE+0x8));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0xc, MSDC_READ32(RALINK_MSDC_BASE+0xc));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x10, MSDC_READ32(RALINK_MSDC_BASE+0x10));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x14, MSDC_READ32(RALINK_MSDC_BASE+0x14));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x18, MSDC_READ32(RALINK_MSDC_BASE+0x18));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x1c, MSDC_READ32(RALINK_MSDC_BASE+0x1c));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x30, MSDC_READ32(RALINK_MSDC_BASE+0x30));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x34, MSDC_READ32(RALINK_MSDC_BASE+0x34));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x38, MSDC_READ32(RALINK_MSDC_BASE+0x38));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x3c, MSDC_READ32(RALINK_MSDC_BASE+0x3c));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x40, MSDC_READ32(RALINK_MSDC_BASE+0x40));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x44, MSDC_READ32(RALINK_MSDC_BASE+0x44));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x48, MSDC_READ32(RALINK_MSDC_BASE+0x48));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x4c, MSDC_READ32(RALINK_MSDC_BASE+0x4c));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x50, MSDC_READ32(RALINK_MSDC_BASE+0x50));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x58, MSDC_READ32(RALINK_MSDC_BASE+0x58));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x5c, MSDC_READ32(RALINK_MSDC_BASE+0x5c));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x60, MSDC_READ32(RALINK_MSDC_BASE+0x60));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x70, MSDC_READ32(RALINK_MSDC_BASE+0x70));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x74, MSDC_READ32(RALINK_MSDC_BASE+0x74));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x78, MSDC_READ32(RALINK_MSDC_BASE+0x78));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x7c, MSDC_READ32(RALINK_MSDC_BASE+0x7c));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x80, MSDC_READ32(RALINK_MSDC_BASE+0x80));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x90, MSDC_READ32(RALINK_MSDC_BASE+0x90));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x94, MSDC_READ32(RALINK_MSDC_BASE+0x94));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x98, MSDC_READ32(RALINK_MSDC_BASE+0x98));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x9c, MSDC_READ32(RALINK_MSDC_BASE+0x9c));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0xa0, MSDC_READ32(RALINK_MSDC_BASE+0xa0));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0xa4, MSDC_READ32(RALINK_MSDC_BASE+0xa4));
+	    printf("%x:\t%x\t(not defined)\n", RALINK_MSDC_BASE+0xa8, MSDC_READ32(RALINK_MSDC_BASE+0xa8));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0xb0, MSDC_READ32(RALINK_MSDC_BASE+0xb0));
+	    printf("%x:\t%x\t(not defined)\n", RALINK_MSDC_BASE+0xb4, MSDC_READ32(RALINK_MSDC_BASE+0xb4));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0xe0, MSDC_READ32(RALINK_MSDC_BASE+0xe0));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0xe4, MSDC_READ32(RALINK_MSDC_BASE+0xe4));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0xe8, MSDC_READ32(RALINK_MSDC_BASE+0xe8));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0xec, MSDC_READ32(RALINK_MSDC_BASE+0xec));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0xf0, MSDC_READ32(RALINK_MSDC_BASE+0xf0));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0xf4, MSDC_READ32(RALINK_MSDC_BASE+0xf4));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0xf8, MSDC_READ32(RALINK_MSDC_BASE+0xf8));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x100, MSDC_READ32(RALINK_MSDC_BASE+0x100));
+	    printf("%x:\t%x\n", RALINK_MSDC_BASE+0x104, MSDC_READ32(RALINK_MSDC_BASE+0x104));
+	    printf("\n***** Dump Registers *****\n");
+    }
+#endif 
 
     return err;
 }

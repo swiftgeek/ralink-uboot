@@ -10,7 +10,7 @@ clean:
 
 .depend:
 
-mkimage: mkimage.o crc32.o
+mkimage: mkimage.o crc32.o crc.o
 	$(HOSTCC) -o $@ $^
 
 

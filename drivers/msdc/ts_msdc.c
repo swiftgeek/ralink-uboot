@@ -93,7 +93,7 @@ void SDMMC_AutoCmd23Test(void);
 void SDMMC_CardDetectTest(void);
 void SDMMC_MMCIRQTest(void);
 void SDMMC_EmmcBootTest(void);
-void SDMMC_StressTest(void);
+void SDMMC_StressTest(int);
 void SDMMC_SuspendResume(void);
 void SDMMC_TuningCmdTest(void);
 void SDMMC_TuningWriteTest(void);
@@ -521,10 +521,14 @@ void SDMMC_CardInitTest(void)
     int id = g_MSDC_id;
 
     for (i = 0; i < 5; i++) {
-	    if (0 != mmc_init(id))
+	    if (0 != mmc_init(id)) {
 		    printf("Card Init Test fail!\n");
+		    goto exit;
+	    }
     }
     printf("Card Init Test pass!\n");
+exit:   
+    return;
 }
 
 /*******************************************************************************
@@ -1524,14 +1528,17 @@ exit:
 * GLOBALS AFFECTED
 *   None
 *******************************************************************************/
-void SDMMC_StressTest(void)
+void SDMMC_StressTest(int num)
 {
     int i;
     struct mmc_host *host;
     struct mmc_card *card;
     struct mmc_command cmd;
 
-    for (i = 0; i < 1; i++) {
+    if (num < 1) 
+	    num = 1;
+    for (i = 0; i < num; i++) {
+	printf("[SDMMC] the %d times Stress test \n", i);
         SDMMC_CardInitTest();
         SDMMC_CardEraseTest();
         SDMMC_CardPIOTest();
@@ -1541,7 +1548,7 @@ void SDMMC_StressTest(void)
         SDMMC_AutoCmd12Test();
     }
 
-    printf("[SDMMC] Stress test successfully\n");
+    printf("[SDMMC] %d Stress test done\n", num);
 }
 #if 0
 /*******************************************************************************
@@ -1852,8 +1859,12 @@ exit:
  ******************************************************************************/
 int ralink_msdc_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-    MSDC_CLR_BIT32(0x10000060, 0x1 << 19);
-    MSDC_SET_BIT32(0x10000060, 0x1 << 18);
+    MSDC_CLR_BIT32(RALINK_SYSCTL_BASE+0x60, 0x1 << 19);
+#if defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD)
+    MSDC_SET_BIT32(RALINK_SYSCTL_BASE+0x60, 0x1 << 18);
+#elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) || defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
+    MSDC_CLR_BIT32(RALINK_SYSCTL_BASE+0x60, 0x1 << 18);
+#endif
 
 	if (!strncmp(argv[1], "register", 9)) {
 		SDMMC_RegTest();
@@ -1882,7 +1893,7 @@ int ralink_msdc_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	} else if (!strncmp(argv[1], "blklen", 7)) {
 		SDMMC_BlockLenTest();
 	} else if (!strncmp(argv[1], "stress", 7)) {
-		SDMMC_StressTest();
+		SDMMC_StressTest(simple_strtoul(argv[2], NULL, 10));
 #if 0
 	} else if (!strncmp(argv[1], "switch", 7)) {
 		TS_MSDC_Switch();
@@ -1953,7 +1964,7 @@ U_BOOT_CMD(
 //	"msdc ddrmode - SDMMC DDR Mode Test\n"		/* DDR Mode Test */
 //	"msdc mmc irq - SDMMC MMC IRQ Test\n"		/* MMC IRQ Test */
 //	"msdc emmc boot - SDMMC EMMC Boot Test\n"	/* EMMC Boot Test */
-	"msdc stress\n"
+	"msdc stress [num]\n"
 ////	"msdc tune cmd - SDMMC Tuning Cmd Test\n"	/* SDMMC Tuning Cmd Test */
 ////	"msdc tune write - SDMMC Tuning Write Test\n"	/* SDMMC Tuning Write Test */
 ////	"msdc tune read - SDMMC Tuning Read Test\n"	/* SDMMC Tuning Read Test */

@@ -66,7 +66,7 @@
 
 #define SPI_FIFO_SIZE 16
 
-//#define ADDR_4B		// if all instruction use 4B address mode
+#define ADDR_4B			// if all instruction use 4B address mode
 //#define RD_MODE_FAST		// use Fast Read instead of normal Read
 //#define RD_MODE_DIOR		// use DIOR (0xBB)instead of normal Read
 //#define RD_MODE_DOR		// use DOR (0x3B) instead of normal Read
@@ -224,8 +224,10 @@ void spic_init(void)
 	printf("spi_wait_nsec: %x \n", spi_wait_nsec);
 
 #elif defined BBU_MODE
+#if defined (RT6855_ASIC_BOARD) || defined (RT6855_FPGA_BOARD)
 	// enable SMC bank 0 alias addressing
 	ra_or(RALINK_SYSCTL_BASE + 0x38, 0x80000000);
+#endif
 #endif
 }
 
@@ -1512,7 +1514,7 @@ U_BOOT_CMD(
 	"erase linux\n    - erase linux kernel block\n"
 );
 
-//#define SPI_FLASH_DBG_CMD 
+#define SPI_FLASH_DBG_CMD 
 #ifdef SPI_FLASH_DBG_CMD
 int ralink_spi_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {

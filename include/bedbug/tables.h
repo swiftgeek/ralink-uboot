@@ -1,4 +1,4 @@
-/* $Id: //WIFI_SOC/release/SDK_4_1_0_0/Uboot/include/bedbug/tables.h#1 $ */
+/* $Id: //WIFI_SOC/MP/SDK_4_2_0_0/Uboot/include/bedbug/tables.h#1 $ */
 
 #ifndef TABLES_H
 #define TABLES_H

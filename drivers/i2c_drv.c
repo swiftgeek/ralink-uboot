@@ -27,12 +27,14 @@
 #if defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD)
 #define BBU_I2C
 #endif
+#define	RT2880_I2C_DEVADDR_STR		"devaddr"	/* Dump Content Command Prompt    */
 #define	RT2880_I2C_DUMP_STR		"dump"	/* Dump Content Command Prompt    */
 #define	RT2880_I2C_READ_STR		"read"	/* I2C read operation */
 #define	RT2880_I2C_WRITE_STR		"write"	/* I2C read operation */
 
 #define RT2880_I2C_DUMP        2
 #define RT2880_I2C_READ        3
+#define RT2880_I2C_DEVADDR     4
 #define RT2880_I2C_WRITE       5
 
 /*---------------------------------------------------------------------*/
@@ -50,7 +52,8 @@
 #define RT2880_I2C_STATUS_REG  		(RALINK_I2C_BASE+0x18)
 #define RT2880_I2C_STARTXFR_REG		(RALINK_I2C_BASE+0x1C)
 #define RT2880_I2C_BYTECNT_REG		(RALINK_I2C_BASE+0x20)
-
+#define RT2880_I2C_SM0_IS_AUTOMODE	(RALINK_I2C_BASE+0x28)
+#define RT2880_I2C_SM0CTL0		(RALINK_I2C_BASE+0x40)
 
 /* I2C_CFG register bit field */
 #define I2C_CFG_ADDRLEN_8				(7<<5)	/* 8 bits */
@@ -63,18 +66,11 @@
 #define IS_SDOEMPTY	(RT2880_REG(RT2880_I2C_STATUS_REG) & 0x02)
 #define IS_DATARDY	(RT2880_REG(RT2880_I2C_STATUS_REG) & 0x04)
 
-
 /*
- * max SCLK : 400 KHz (2.7V)
- * assumed that BUS CLK is 150 MHZ 
- * so DIV 375
- * SCLK = PB_CLK / (2*CLKDIV)
- */
-#ifndef RT2880_FPGA_BOARD
-#define CLKDIV_VALUE	375
-#else
-#define CLKDIV_VALUE	60
-#endif 
+ *  * max SCLK : 400 KHz
+ *   * CLKDIV < I2C_CLK / SCLK = I2C_CLK / 0.4
+ *    */
+#define CLKDIV_VALUE    333
 
 #define i2c_busy_loop		(CLKDIV_VALUE*30)
 #define max_ee_busy_loop	(CLKDIV_VALUE*25)
@@ -86,6 +82,13 @@
  * AT24C512 (512K)
  *  -- address : two 8-bits
  */    
+#if defined (MT7621_FPGA_BOARD)
+//MT7621 FPGA board use AT24C64 EEPROM (need 2bytes word address support)
+//#define CONFIG_EEPROM_ADDRESS_BYTES  2
+//connected to PCI-E/USB3 DTB
+#define CONFIG_EEPROM_ADDRESS_BYTES  1
+#endif
+
 #if (CONFIG_EEPROM_ADDRESS_BYTES == 2)
 #define ADDRESS_BYTES	2
 #else
@@ -138,8 +141,7 @@ void i2c_master_init(void);
 /*---------------------------------------------------------------------*/
 /* External Variable Definitions                                       */
 /*---------------------------------------------------------------------*/
-
-
+u32 i2c_devaddr = 0x50;
 
 
 
@@ -167,7 +169,18 @@ void i2c_master_init(void)
 	
 	RT2880_REG(RT2880_I2C_CONFIG_REG) = I2C_CFG_DEFAULT;
 
+#if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+	val = 1 << 31; // the output is pulled hight by SIF master 0
+	val |= 1 << 28; // allow triggered in VSYNC pulse
+	val |= CLKDIV_VALUE << 16; //clk div
+	val |= 1 << 6; // output H when SIF master 0 is in WAIT state
+	val |= 1 << 1; // Enable SIF master 0
+	RT2880_REG(RT2880_I2C_SM0CTL0) = val;
+
+	RT2880_REG(RT2880_I2C_SM0_IS_AUTOMODE) = 1; //auto mode
+#else
 	RT2880_REG(RT2880_I2C_CLKDIV_REG) = CLKDIV_VALUE;
+#endif
 
 	/*
 	 * Device Address : 
@@ -187,7 +200,7 @@ void i2c_master_init(void)
 	 * if device address is 0, 
 	 * write 0xA0 >> 1 into DEVADDR(max 7-bits) REG  
 	 */
-	RT2880_REG(RT2880_I2C_DEVADDR_REG) = 0xA0 >> 1;
+	RT2880_REG(RT2880_I2C_DEVADDR_REG) =  i2c_devaddr;
 
 	/*
 	 * Use Address Disabled Transfer Options
@@ -284,7 +297,7 @@ static inline void random_read_block(u32 address, u8 *data)
 		
 		page = ((address >> 8) & 0x7) << 1;
 		/* device id always 0 */
-		RT2880_REG(RT2880_I2C_DEVADDR_REG) = (0xA0|page) >> 1;
+		RT2880_REG(RT2880_I2C_DEVADDR_REG) = (i2c_devaddr | (page >> 1));
 	}
 
    	/* dummy write */
@@ -302,7 +315,7 @@ static inline u8 random_read_one_byte(u32 address)
 		
 		page = ((address >> 8) & 0x7) << 1;
 		/* device id always 0 */
-		RT2880_REG(RT2880_I2C_DEVADDR_REG) = (0xA0|page) >> 1;
+		RT2880_REG(RT2880_I2C_DEVADDR_REG) = (i2c_devaddr | (page >> 1));
 	}
 
    	/* dummy write */
@@ -349,7 +362,7 @@ static inline void random_write_block(u32 address, u8 *data)
 		
 		page = ((address >> 8) & 0x7) << 1;
 		/* device id always 0 */
-		RT2880_REG(RT2880_I2C_DEVADDR_REG) = (0xA0|page) >> 1;
+		RT2880_REG(RT2880_I2C_DEVADDR_REG) = (i2c_devaddr | (page >> 1));
 	}
 
 
@@ -365,7 +378,7 @@ static inline void random_write_one_byte(u32 address, u8 *data)
 		
 		page = ((address >> 8) & 0x7) << 1;
 		/* device id always 0 */
-		RT2880_REG(RT2880_I2C_DEVADDR_REG) = (0xA0|page) >> 1;
+		RT2880_REG(RT2880_I2C_DEVADDR_REG) = (i2c_devaddr | (page >> 1));
 	}
 
 	i2c_write(address, data, 1);
@@ -423,7 +436,11 @@ int rt2880_i2c_toolkit(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 #ifndef BBU_I2C
 	/* configure i2c to normal mode */
+#if defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD)
+	RT2880_REG(RT2880_GPIOMODE_REG) &= ~(1 << 2);
+#else
 	RT2880_REG(RT2880_GPIOMODE_REG) &= ~1;
+#endif
 #endif
 
 	switch (argc) {
@@ -461,6 +478,14 @@ int rt2880_i2c_toolkit(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 			i2c_eeprom_write(address, (u8*)&value, size);
 			printf("0x%08x: 0x%08x in %d bytes\n", address, value, size);
 			break;
+		case RT2880_I2C_DEVADDR:
+			chk_match = strcmp(argv[2],  RT2880_I2C_DEVADDR_STR);
+			if (chk_match != 0) {
+				printf("Usage:\n%s\n", cmdtp->usage);
+				return 1;
+			}
+			i2c_devaddr = simple_strtoul(argv[3], NULL, 16);
+			break;
 		default:
 			printf("Usage:\n%s\n use \"help i2ccmd\" to get more detail!\n", cmdtp->usage);
 	}
@@ -472,6 +497,7 @@ U_BOOT_CMD(
 	"i2ccmd	- read/write data to eeprom via I2C Interface\n",
 	"i2ccmd read/write eeprom_address data(if write)\n"
 	"i2ccmd format:\n"
+	"  i2ccmd set devaddr [addr in hex]\n"
 	"  i2ccmd read [offset in hex]\n"
 	"  i2ccmd write [size] [offset] [value]\n"
 	"  i2ccmd dump\n"

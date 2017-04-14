@@ -1,9 +1,20 @@
+if [ "$MT7621_FPGA_BOARD" = "y" -o "$MT7621_ASIC_BOARD" = "y" ]; then
+string 'Cross Compiler Path' CONFIG_CROSS_COMPILER_PATH  /opt/mips-2012.03/bin/
+elif [ "$RT2880_FPGA_BOARD" = "y" -o "$RT2880_ASIC_BOARD" = "y" -o
+	  "$RT3052_FPGA_BOARD" = "y" -o "$RT3052_ASIC_BOARD" = "y" -o
+	  "$RT3352_FPGA_BOARD" = "y" -o "$RT3352_ASIC_BOARD" = "y" -o
+	  "$RT3883_FPGA_BOARD" = "y" -o "$RT3883_ASIC_BOARD" = "y" -o
+	  "$RT5350_FPGA_BOARD" = "y" -o "$RT5350_ASIC_BOARD" = "y" -o
+	  "$RT6855A_FPGA_BOARD" = "y" -o "$RT6855A_ASIC_BOARD" = "y" -o
+	  "$MT7620_FPGA_BOARD" = "y" -o "$MT7620_ASIC_BOARD" = "y" -o
+	  "$MT7628_FPGA_BOARD" = "y" -o "$MT7628_ASIC_BOARD" = "y" ]; then
 string 'Cross Compiler Path' CONFIG_CROSS_COMPILER_PATH  /opt/buildroot-gcc342/bin
+fi
 comment ""
 
 mainmenu_name 'Uboot Configuration'
-choice 'Chip Type' "ASIC ASIC_BOARD 
-                   "
+                  
+define_bool ASIC_BOARD y
 
 if [ "$FPGA_BOARD" = "y" ]; then
 choice 'Chip ID'	 "RT2880 RT2880_FPGA_BOARD \
@@ -13,7 +24,7 @@ choice 'Chip ID'	 "RT2880 RT2880_FPGA_BOARD \
                           RT5350 RT5350_FPGA_BOARD \
                           RT6855A RT6855A_FPGA_BOARD \
                           MT7620 MT7620_FPGA_BOARD \
-                          MT7621 MT7621_FPGA_BOARD 
+                          MT7621 MT7621_FPGA_BOARD
                          "
 else
 choice 'Chip ID'	" RT2880 RT2880_ASIC_BOARD \
@@ -23,7 +34,8 @@ choice 'Chip ID'	" RT2880 RT2880_ASIC_BOARD \
                           RT3883 RT3883_ASIC_BOARD \
                           RT5350 RT5350_ASIC_BOARD \
                           RT6855A RT6855A_ASIC_BOARD \
-                          MT7620 MT7620_ASIC_BOARD
+                          MT7620 MT7620_ASIC_BOARD \
+                          MT7621 MT7621_ASIC_BOARD
                          "
 fi
 
@@ -276,7 +288,8 @@ if [ "$RT3883_USE_GE1" = "y" ]; then
 choice 'GE1 connected to' "GE_MII_FORCE_100	 GE_MII_FORCE_100 \
 		           GE_RVMII_FORCE_100 GE_RVMII_FORCE_100 \
 		  	   GE_MII_AN		 GE_MII_AN \
-		           GE_RGMII_FORCE_1000   GE_RGMII_FORCE_1000 \
+		           GE_RGMII_FORCE_1000(MT7530)      GE_RGMII_FORCE_1000 \
+		           GE_RGMII_FORCE_VITESSE   GE_RGMII_FORCE_VITESSE \
 		           GE_RGMII_AN		 GE_RGMII_AN 
 			  "
 else
@@ -298,9 +311,14 @@ if [ "$GE_MII_AN" = "y" ]; then
     hex "10/100 PHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1f
 fi
 
-if [ "$GE_RGMII_FORCE_1000" = "y" ]; then
+if [ "$GE_RGMII_FORCE_VITESSE" = "y" ]; then
     define_bool  MAC_TO_VITESSE_MODE y
-    define_bool GPIOx_RESET_MODE y
+    define_bool  GPIOx_RESET_MODE y
+fi
+
+if [ "$GE_RGMII_FORCE_1000" = "y" ]; then
+    define_bool  MAC_TO_MT7530_MODE y
+    define_bool  GPIOx_RESET_MODE y
 fi
 
 if [ "$GE_RGMII_AN" = "y" ]; then
@@ -915,72 +933,92 @@ else
 define_bool UBOOT_RAM y
 fi
 
+#
+# Enable(uncomment) following line to enable the adjustment for CPU PLL settings in menuconfig,
+# and then input:  make mrproper;make menuconfig
+#define_bool MT7620_CPU_PLL_PARAMETERS y
 
-if [ "$UBOOT_ROM" = "y" ]; then
-if [ "$ON_BOARD_SDR" = "y" ]; then
-choice 'CPU PLL source' "None CPLL_NONE	\
+if [ "$MT7620_CPU_PLL_PARAMETERS" = "y" ]; then
+	if [ "$ON_BOARD_SDR" = "y" ]; then
+		choice 'CPU PLL source' "None CPLL_NONE	\
 		   						AUX0 CPLL_FROM_480MHZ	\
 								AUX1 CPLL_FROM_XTAL \
 								CONF CPLL_FROM_CONF
 								" None
-else
-choice 'CPU PLL source' "None CPLL_NONE	\
+	else
+		choice 'CPU PLL source' "None CPLL_NONE	\
 		   						AUX0 CPLL_FROM_480MHZ	\
 								AUX1 CPLL_FROM_XTAL \
 								CONF CPLL_FROM_CONF
 								" CONF
-fi
-fi
+	fi
 
-if [ "$CPLL_FROM_CONF" = "y" ]; then
-choice '   PLL_MULTI_RATIO conf' "24 MT7620_PLL_MULTI_RATIO_24 \
-                                        25 MT7620_PLL_MULTI_RATIO_25 \
-                                        26 MT7620_PLL_MULTI_RATIO_26 \
-                                        27 MT7620_PLL_MULTI_RATIO_27 \
-                                        28 MT7620_PLL_MULTI_RATIO_28 \
-                                        29 MT7620_PLL_MULTI_RATIO_29 \
-                                        30 MT7620_PLL_MULTI_RATIO_30 \
-                                        " 29
-if [ "$MT7620_PLL_MULTI_RATIO_24" = "y" ]; then
-define_hex	CPLL_MULTI_RATIO_CFG	0
-fi
-if [ "$MT7620_PLL_MULTI_RATIO_25" = "y" ]; then
-define_hex	CPLL_MULTI_RATIO_CFG	1
-fi
-if [ "$MT7620_PLL_MULTI_RATIO_26" = "y" ]; then
-define_hex	CPLL_MULTI_RATIO_CFG	2
-fi
-if [ "$MT7620_PLL_MULTI_RATIO_27" = "y" ]; then
-define_hex	CPLL_MULTI_RATIO_CFG	3
-fi
-if [ "$MT7620_PLL_MULTI_RATIO_28" = "y" ]; then
-define_hex	CPLL_MULTI_RATIO_CFG	4
-fi
-if [ "$MT7620_PLL_MULTI_RATIO_29" = "y" ]; then
-define_hex	CPLL_MULTI_RATIO_CFG	5
-fi
-if [ "$MT7620_PLL_MULTI_RATIO_30" = "y" ]; then
-define_hex	CPLL_MULTI_RATIO_CFG	6
-fi
-choice '    PLL_DIV_RATIO conf' "2 MT7620_PLL_DIV_RATIO_2 \
-                                      3 MT7620_PLL_DIV_RATIO_3 \
-                                      4 MT7620_PLL_DIV_RATIO_4 \
-                                     " 2
-if [ "$MT7620_PLL_DIV_RATIO_2" = "y" ]; then
-define_hex	CPLL_DIV_RATIO_CFG	0
-fi
-if [ "$MT7620_PLL_DIV_RATIO_3" = "y" ]; then
-define_hex	CPLL_DIV_RATIO_CFG	1
-fi
-if [ "$MT7620_PLL_DIV_RATIO_4" = "y" ]; then
-define_hex	CPLL_DIV_RATIO_CFG	2
-fi
+	if [ "$CPLL_NONE" = "n" ]; then
+		define_hex CPU_PLL_PARAMETERS   1
+	fi
 
-#hex "    SSC conf (CPLL_CFG0[4:9])"		CPLL_SSC_CFG			0x7
-define_hex	CPLL_SSC_CFG	0x7
+	if [ "$CPLL_FROM_CONF" = "y" ]; then
+		choice '   PLL_MULTI_RATIO conf' "24 MT7620_PLL_MULTI_RATIO_24 \
+	                                        25 MT7620_PLL_MULTI_RATIO_25 \
+	                                        26 MT7620_PLL_MULTI_RATIO_26 \
+	                                        27 MT7620_PLL_MULTI_RATIO_27 \
+	                                        28 MT7620_PLL_MULTI_RATIO_28 \
+	                                        29 MT7620_PLL_MULTI_RATIO_29 \
+	                                        30 MT7620_PLL_MULTI_RATIO_30 \
+	                                        " 29
+		if [ "$MT7620_PLL_MULTI_RATIO_24" = "y" ]; then
+			define_hex	CPLL_MULTI_RATIO_CFG	0
+		fi
+		if [ "$MT7620_PLL_MULTI_RATIO_25" = "y" ]; then
+			define_hex	CPLL_MULTI_RATIO_CFG	1
+		fi
+		if [ "$MT7620_PLL_MULTI_RATIO_26" = "y" ]; then
+			define_hex	CPLL_MULTI_RATIO_CFG	2
+		fi
+		if [ "$MT7620_PLL_MULTI_RATIO_27" = "y" ]; then
+			define_hex	CPLL_MULTI_RATIO_CFG	3
+		fi
+		if [ "$MT7620_PLL_MULTI_RATIO_28" = "y" ]; then
+			define_hex	CPLL_MULTI_RATIO_CFG	4
+		fi
+		if [ "$MT7620_PLL_MULTI_RATIO_29" = "y" ]; then
+			define_hex	CPLL_MULTI_RATIO_CFG	5
+		fi
+		if [ "$MT7620_PLL_MULTI_RATIO_30" = "y" ]; then
+			define_hex	CPLL_MULTI_RATIO_CFG	6
+		fi
+		choice '    PLL_DIV_RATIO conf' "2 MT7620_PLL_DIV_RATIO_2 \
+	                                      3 MT7620_PLL_DIV_RATIO_3 \
+	                                      4 MT7620_PLL_DIV_RATIO_4 \
+	                                     " 2
+		if [ "$MT7620_PLL_DIV_RATIO_2" = "y" ]; then
+			define_hex	CPLL_DIV_RATIO_CFG	0
+		fi
+		if [ "$MT7620_PLL_DIV_RATIO_3" = "y" ]; then
+			define_hex	CPLL_DIV_RATIO_CFG	1
+		fi
+		if [ "$MT7620_PLL_DIV_RATIO_4" = "y" ]; then
+			define_hex	CPLL_DIV_RATIO_CFG	2
+		fi
 
+		#hex "    SSC conf (CPLL_CFG0[4:9])"		CPLL_SSC_CFG			0x7
+		define_hex	CPLL_SSC_CFG	0x7
+	fi
+else
+	#
+	# Force MT7620 CPU PLL :   SDR: 600MHZ,  DDR1/2: 580Mhz
+	#
+	if [ "$ON_BOARD_SDR" = "y" ]; then
+		define_bool	CPLL_NONE 		y
+	else
+		define_bool	CPLL_FROM_CONF 		y
+		define_bool	CPLL_NONE 		n
+		define_hex	CPU_PLL_PARAMETERS	1
+		define_hex      CPLL_MULTI_RATIO_CFG    5
+		define_hex      CPLL_DIV_RATIO_CFG      0
+		define_hex      CPLL_SSC_CFG		0x7
+	fi
 fi
-
 
 
 bool "Dual Image" DUAL_IMAGE_SUPPORT
@@ -1047,6 +1085,11 @@ if [ "$MT7621_FPGA_BOARD" = "y" -o "$MT7621_ASIC_BOARD" = "y" ]; then
 
 define_bool MT7621_MP y
 
+# bypass ddr calibration in FPGA mode
+if [ "$MT7621_FPGA_BOARD" = "y" ]; then
+define_bool BYPASS_MTK_DDR_CAL y
+fi
+
 #-----------------------
 # MT7621 GMAC
 #-----------------------
@@ -1056,17 +1099,19 @@ choice 'Use GE1 or GE2' "GMAC1 MT7621_USE_GE1  \
 			"
 if [ "$MT7621_USE_GE1" = "y" ]; then
 choice 'GE1 connected to' "GE_MII_FORCE_100	 GE_MII_FORCE_100 \
-		           GE_RVMII_FORCE_100 GE_RVMII_FORCE_100 \
+		           GE_RVMII_FORCE_100    GE_RVMII_FORCE_100 \
 		  	   GE_MII_AN		 GE_MII_AN \
 		           GE_RGMII_FORCE_1000   GE_RGMII_FORCE_1000 \
 		           GE_RGMII_AN		 GE_RGMII_AN 
 			  "
 else
-choice 'GE2 connected to' "GE_MII_FORCE_100		GE_MII_FORCE_100 \
+choice 'GE2 connected to' " GE_MII_FORCE_100		GE_MII_FORCE_100 \
 			    GE_RVMII_FORCE_100		GE_RVMII_FORCE_100 \
   			    GE_MII_AN			GE_MII_AN \
 			    GE_RGMII_FORCE_1000		GE_RGMII_FORCE_1000 \
-			    GE_RGMII_AN			GE_RGMII_AN 
+			    GE_RGMII_AN			GE_RGMII_AN \
+			    GE_RGMII_INTERNAL_P0_AN	GE_RGMII_INTERNAL_P0_AN \
+			    GE_RGMII_INTERNAL_P4_AN	GE_RGMII_INTERNAL_P4_AN 
 			   "
 fi
 
@@ -1075,20 +1120,39 @@ if [ "$GE_MII_FORCE_100" = "y" -o \
     define_bool MAC_TO_100SW_MODE y
 fi     
 
-if [ "$GE_MII_AN" = "y" ]; then
+if [ "$GE_MII_AN" = "y" -a "$MT7621_USE_GE1" = "y" ]; then
+    define_bool MAC_TO_100PHY_MODE y
+    hex "10/100 PHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1e
+fi
+if [ "$GE_MII_AN" = "y" -a "$MT7621_USE_GE2" = "y" ]; then
     define_bool MAC_TO_100PHY_MODE y
     hex "10/100 PHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1f
 fi
 
 if [ "$GE_RGMII_FORCE_1000" = "y" ]; then
-    define_bool  MAC_TO_VITESSE_MODE y
+    define_bool  MAC_TO_MT7530_MODE y
     define_bool GPIOx_RESET_MODE y
 fi
 
-if [ "$GE_RGMII_AN" = "y" ]; then
+if [ "$GE_RGMII_AN" = "y" -a "$MT7621_USE_GE1" = "y" ]; then
+    define_bool  MAC_TO_GIGAPHY_MODE y
+    hex "GigaPHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1e
+fi
+if [ "$GE_RGMII_AN" = "y" -a "$MT7621_USE_GE2" = "y" ]; then
     define_bool  MAC_TO_GIGAPHY_MODE y
     hex "GigaPHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1f
 fi
+
+if [ "$GE_RGMII_INTERNAL_P0_AN" = "y" -a "$MT7621_USE_GE2" = "y" ]; then
+    define_bool  MAC_TO_GIGAPHY_MODE y
+    define_hex   MAC_TO_GIGAPHY_MODE_ADDR 0x0
+fi
+
+if [ "$GE_RGMII_INTERNAL_P4_AN" = "y" -a "$MT7621_USE_GE2" = "y" ]; then
+    define_bool  MAC_TO_GIGAPHY_MODE y
+    define_hex   MAC_TO_GIGAPHY_MODE_ADDR 0x4
+fi
+
 
 #-----------------------
 # MT7621 FLASH
@@ -1096,6 +1160,109 @@ fi
 choice 'Flash Type' "NAND ON_BOARD_NAND_FLASH_COMPONENT \
                      SPI ON_BOARD_SPI_FLASH_COMPONENT
 		    "SPI
+if [ "$ON_BOARD_NAND_FLASH_COMPONENT" = "y" ]; then
+
+define_bool	ON_BOARD_NAND_BOOTSTRAP y
+
+#choice 'NAND parameters' "BootStrap ON_BOARD_NAND_BOOTSTRAP	\
+#			  Header    ON_BOARD_NAND_HEADER
+#			"BootStrap							
+
+fi
+
+if [ "$ON_BOARD_NAND_HEADER" = "y" ]; then
+define_bool  NAND_INFO_HEADER y
+choice 'NAND page size' "2KB NAND_PAGESIZE_2048 \
+	                                      4KB NAND_PAGESIZE_4096 \
+	                                     " 2
+		if [ "$NAND_PAGESIZE_2048" = "y" ]; then
+			define_hex	NAND_PAGESIZE_INDEX	1
+		fi
+		if [ "$NAND_PAGESIZE_4096" = "y" ]; then
+			define_hex	NAND_PAGESIZE_INDEX	2
+		fi
+
+choice 'NAND address length' "4 NAND_ADDRLEN_4 \
+	                                      5 NAND_ADDRLEN_5 \
+	                                      6 NAND_ADDRLEN_6 \
+	                                     " 4
+		if [ "$NAND_ADDRLEN_4" = "y" ]; then
+			define_hex	NAND_ADDRLEN_INDEX	0
+		fi
+		if [ "$NAND_ADDRLEN_5" = "y" ]; then
+			define_hex	NAND_ADDRLEN_INDEX	1
+		fi
+		if [ "$NAND_ADDRLEN_6" = "y" ]; then
+			define_hex	NAND_ADDRLEN_INDEX	2
+		fi
+		
+		
+choice 'NAND spare size' "64B NAND_SPARESIZE_64 \
+	                                      128B NAND_SPARESIZE_128 \
+	                                      224B NAND_SPARESIZE_224 \
+	                                     " 128B
+		if [ "$NAND_SPARESIZE_64" = "y" ]; then
+			define_hex	NAND_SPARESIZE_INDEX	0
+		fi
+		if [ "$NAND_SPARESIZE_128" = "y" ]; then
+			define_hex	NAND_SPARESIZE_INDEX	1
+		fi
+		if [ "$NAND_SPARESIZE_224" = "y" ]; then
+			define_hex	NAND_SPARESIZE_INDEX	2
+		fi			
+
+choice 'NAND total size' "64MB NAND_TOTALSIZE_64MB \
+	                                      128MB NAND_TOTALSIZE_128MB \
+	                                      256MB NAND_TOTALSIZE_256MB \
+	                                      512MB NAND_TOTALSIZE_512MB \
+	                                      1GB NAND_TOTALSIZE_1GB \
+	                                      2GB NAND_TOTALSIZE_2GB \
+	                                      4GB NAND_TOTALSIZE_4GB \
+	                                     " 1GB
+		if [ "$NAND_TOTALSIZE_64MB" = "y" ]; then
+			define_hex	NAND_TOTALSIZE_INDEX	0
+		fi
+		if [ "$NAND_TOTALSIZE_128MB" = "y" ]; then
+			define_hex	NAND_TOTALSIZE_INDEX	1
+		fi
+		if [ "$NAND_TOTALSIZE_256MB" = "y" ]; then
+			define_hex	NAND_TOTALSIZE_INDEX	2
+		fi
+		if [ "$NAND_TOTALSIZE_256MB" = "y" ]; then
+			define_hex	NAND_TOTALSIZE_INDEX	3
+		fi
+		if [ "$NAND_TOTALSIZE_512MB" = "y" ]; then
+			define_hex	NAND_TOTALSIZE_INDEX	4
+		fi
+		if [ "$NAND_TOTALSIZE_1GB" = "y" ]; then
+			define_hex	NAND_TOTALSIZE_INDEX	5
+		fi
+		if [ "$NAND_TOTALSIZE_2GB" = "y" ]; then
+			define_hex	NAND_TOTALSIZE_INDEX	6
+		fi
+
+
+choice 'NAND block size' "64KB NAND_BLOCKSIZE_64KB \
+	                                      128KB NAND_BLOCKSIZE_128KB \
+	                                      256KB NAND_BLOCKSIZE_256KB \
+	                                      512KB NAND_BLOCKSIZE_512KB \
+	                                     " 128KB
+		if [ "$NAND_BLOCKSIZE_64KB" = "y" ]; then
+			define_hex	NAND_BLOCKSIZE_INDEX	0
+		fi
+		if [ "$NAND_BLOCKSIZE_128KB" = "y" ]; then
+			define_hex	NAND_BLOCKSIZE_INDEX	1
+		fi
+		if [ "$NAND_BLOCKSIZE_256KB" = "y" ]; then
+			define_hex	NAND_BLOCKSIZE_INDEX	2
+		fi
+		if [ "$NAND_BLOCKSIZE_512KB" = "y" ]; then
+			define_hex	NAND_BLOCKSIZE_INDEX	3
+		fi
+
+hex "NAND Access timing (Hex)"	NAND_ACCTIME	0x44433
+
+fi
 
 if [ "$DUAL_IMAGE_SUPPORT" = "y" ]; then
 choice 'Flash Size' "4M ON_BOARD_4M_FLASH_COMPONENT \
@@ -1103,33 +1270,59 @@ choice 'Flash Size' "4M ON_BOARD_4M_FLASH_COMPONENT \
                      16M ON_BOARD_16M_FLASH_COMPONENT 
 		    " 4M
 fi
-#-----------------------
-# MT7621 DRAM
-#-----------------------
-choice 'DRAM Type' "SDR ON_BOARD_SDR \
-	            DDR1 ON_BOARD_DDR1 \
-	            DDR2 ON_BOARD_DDR2
-		    "SDR
 
-if [ "$ON_BOARD_SDR" = "y" ]; then
-choice 'DRAM Component' "64Mb ON_BOARD_64M_DRAM_COMPONENT \
-                         128Mb ON_BOARD_128M_DRAM_COMPONENT \
-                         256Mb ON_BOARD_256M_DRAM_COMPONENT \
-                         512Mb ON_BOARD_512M_DRAM_COMPONENT 
-		      " 128Mb
-else
-choice 'DDR Component' "256Mb ON_BOARD_256M_DRAM_COMPONENT \
-                        512Mb ON_BOARD_512M_DRAM_COMPONENT \
-                        1024Mb ON_BOARD_1024M_DRAM_COMPONENT
-		      " 512Mb
-
-choice 'DDR Width' "8bits ON_BOARD_DDR_WIDTH_8 \
-	            16bits ON_BOARD_DDR_WIDTH_16
-		   " 16bits
-fi
-
+define_bool ON_BOARD_DDR3 y
+define_bool ON_BOARD_DDR_WIDTH_16 y
 define_bool ON_BOARD_16BIT_DRAM_BUS y
 
+choice 'DDR Component' "512Mb  ON_BOARD_512M_DRAM_COMPONENT  \
+			1024Mb ON_BOARD_1024M_DRAM_COMPONENT \
+			2048Mb ON_BOARD_2048M_DRAM_COMPONENT \
+			4096Mb ON_BOARD_4096M_DRAM_COMPONENT
+			" 1024Mb
+
+choice 'DRAM Speed'    "1200Mhz MT7621_DDR_1200MHZ \
+			800Mhz MT7621_DDR_800MHZ \
+			400Mhz MT7621_DDR_400MHZ
+			"800Mhz
+
+
+#================
+#1PLL=10, 20, 30
+#3PLL=11, 21, 31
+#================
+if [ "$MT7621_DDR_1200MHZ" = "y" ]; then
+    define_hex  MT7621_DDR_SPEED    11
+fi
+if [ "$MT7621_DDR_800MHZ" = "y" ]; then
+    define_hex  MT7621_DDR_SPEED    21
+fi
+if [ "$MT7621_DDR_400MHZ" = "y" ]; then
+    define_hex  MT7621_DDR_SPEED    31
+fi
+
+choice 'CPU Frequency' " 880Mhz MT7621_CPU_880MHZ \
+						875Mhz MT7621_CPU_875MHZ \
+		   				800Mhz MT7621_CPU_800MHZ \
+						500Mhz MT7621_CPU_500MHZ \
+						50Mhz MT7621_CPU_50MHZ"
+						880Mhz
+
+if [ "$MT7621_CPU_880MHZ" = "y" ]; then
+    define_hex  MT7621_CPU_FREQUENCY    370
+fi
+if [ "$MT7621_CPU_875MHZ" = "y" ]; then
+    define_hex  MT7621_CPU_FREQUENCY    36B
+fi
+if [ "$MT7621_CPU_800MHZ" = "y" ]; then
+    define_hex  MT7621_CPU_FREQUENCY    320
+fi
+if [ "$MT7621_CPU_500MHZ" = "y" ]; then
+    define_hex  MT7621_CPU_FREQUENCY    1F4
+fi
+if [ "$MT7621_CPU_50MHZ" = "y" ]; then
+    define_hex  MT7621_CPU_FREQUENCY    32
+fi
 #-----------------------
 # MT7621 Option
 #-----------------------
@@ -1142,14 +1335,12 @@ if [ "$ON_BOARD_SPI_FLASH_COMPONENT" == "y" ]; then
 choice 'Ram/Rom version' "RAM UBOOT_RAM \
 			  ROM UBOOT_ROM 
 			 " ROM
-#choice 'Small Uboot/Config partition' "Normal_Partition_5_sectors NORMAL_UBOOT_PARTITION \
-#				       Small_Partition_3_sectors SMALL_UBOOT_PARTITION
-#				      " Normal_Partition_5_sectors
 else
 define_bool UBOOT_RAM y
 fi
 
 bool "Dual Image" DUAL_IMAGE_SUPPORT
+bool "Dual Core Support" RALINK_DUAL_CORE_FUN
 
 bool "Partition LAN/WAN" LAN_WAN_PARTITION
 if [ "$LAN_WAN_PARTITION" = "y" ]; then
@@ -1158,20 +1349,260 @@ if [ "$LAN_WAN_PARTITION" = "y" ]; then
 			       "
 fi
 
-bool "Static DRAM Parameter" DRAM_PARAMETERS
-if [ "$DRAM_PARAMETERS" = "y" ]; then
-if [ "$ON_BOARD_SDR" = "y" ]; then
-hex " SDRAM_CFG0"		DRAM_CFG0	0
-hex " SDRAM_CFG1"		DRAM_CFG1	0
-else
-hex " SYSCFG1(hex)"		DRAM_CFG0	26
-hex " DDR_CFG3_ODT(hex)"	DRAM_CFG1	2
+bool "DDR ACTiming Setting" DDR_ACT_SETTING
+if [ "$DDR_ACT_SETTING" = "y" ]; then
+choice 'DDR Chip' "\
+	DDR3_Default(1Gb) DEFAULT_DDR3_1024M \
+	DDR3_Default(2Gb) DEFAULT_DDR3_2048M \
+	DDR3_Default(4Gb) DEFAULT_DDR3_4096M \
+	DDR2_Default(512Mb) DEFAULT_DDR2_512M \
+	DDR2_Default(1Gb) DEFAULT_DDR2_1024M \
+	DDR2_W971GG6KB(1Gb) W971GG6KB_DDR2_1024M"
+
+if [ "$DEFAULT_DDR3_1024M" = "y" ]; then
+define_string DDR_CHIP DEFAULT_DDR3_1024M
+fi
+if [ "$DEFAULT_DDR3_2048M" = "y" ]; then
+define_string DDR_CHIP DEFAULT_DDR3_2048M
+fi
+if [ "$DEFAULT_DDR3_4096M" = "y" ]; then
+define_string DDR_CHIP DEFAULT_DDR3_4096M
+fi
+if [ "$DEFAULT_DDR2_512M" = "y" ]; then
+define_string DDR_CHIP DEFAULT_DDR2_512M
+fi
+if [ "$W971GG6KB_DDR2_1024M" = "y" ]; then
+define_string DDR_CHIP W971GG6KB_DDR2_1024M
+fi
+if [ "$DEFAULT_DDR2_1024M" = "y" ]; then
+define_string DDR_CHIP DEFAULT_DDR2_1024M
 fi
 fi
 
-bool "CPU PLL adjustment" CPU_PLL_PARAMETERS
-if [ "$CPU_PLL_PARAMETERS" = "y" ]; then
-hex " CPU PLL ADJUSTMENT "	CPUPLLCFG	0
+if [ "$UBOOT_RAM" = "y" ]; then
+define_hex TEXT_BASE  0xA0200000
+else
+define_hex TEXT_BASE  0xBFC00000
+fi
+
+fi
+#########################################################################################3
+# MT7628
+#########################################################################################3
+if [ "$MT7628_FPGA_BOARD" = "y" -o "$MT7628_ASIC_BOARD" = "y" ]; then
+
+define_bool MT7628_MP y
+
+#-----------------------
+# MT7628 GMAC
+#-----------------------
+define_bool P5_MAC_TO_NONE_MODE y
+define_bool P4_MAC_TO_NONE_MODE y
+
+
+#-----------------------
+# MT7628 FLASH
+#-----------------------
+define_bool ON_BOARD_SPI_FLASH_COMPONENT y
+
+if [ "$DUAL_IMAGE_SUPPORT" = "y" ]; then
+choice 'Flash Size' "4M ON_BOARD_4M_FLASH_COMPONENT \
+                     8M ON_BOARD_8M_FLASH_COMPONENT \
+                     16M ON_BOARD_16M_FLASH_COMPONENT
+                    " 4M
+fi
+#-----------------------
+# MT7628 DRAM
+#-----------------------
+choice 'DRAM Type' "DDR1 ON_BOARD_DDR1 \
+                    DDR2 ON_BOARD_DDR2
+                    "DDR2
+
+if [ "$ON_BOARD_SDR" = "y" ]; then
+choice 'DRAM Component' "64Mb ON_BOARD_64M_DRAM_COMPONENT \
+                         128Mb ON_BOARD_128M_DRAM_COMPONENT \
+                         256Mb ON_BOARD_256M_DRAM_COMPONENT \
+                         512Mb ON_BOARD_512M_DRAM_COMPONENT
+                      " 128Mb
+else
+if [ "$ON_BOARD_DDR1" = "y" ]; then
+choice 'DDR Component' "128Mb ON_BOARD_128M_DRAM_COMPONENT \
+                                                                                                256Mb ON_BOARD_256M_DRAM_COMPONENT \
+                                                                                                512Mb ON_BOARD_512M_DRAM_COMPONENT \
+                                                                                                1024Mb ON_BOARD_1024M_DRAM_COMPONENT
+                                                                                                " 256Mb
+else
+if [ "$ON_BOARD_DDR2" = "y" ]; then
+choice 'DDR Component' "256Mb ON_BOARD_256M_DRAM_COMPONENT \
+                                                                                                512Mb ON_BOARD_512M_DRAM_COMPONENT \
+                                                                                                1024Mb ON_BOARD_1024M_DRAM_COMPONENT \
+                                                                                                2048Mb ON_BOARD_2048M_DRAM_COMPONENT
+                                                                                                " 512Mb
+fi
+fi
+fi
+
+if [ "$ON_BOARD_DDR1" = "y" -o "$ON_BOARD_DDR2" = "y" ]; then
+choice 'DDR Width' "8bits ON_BOARD_DDR_WIDTH_8 \
+                    16bits ON_BOARD_DDR_WIDTH_16
+                   " 16bits
+fi
+
+define_bool ON_BOARD_16BIT_DRAM_BUS y
+#-----------------------
+# MT7628 Option
+#-----------------------
+comment ""
+
+#define_bool PDMA_NEW y
+#define_bool RX_SCATTER_GATTER_DMA y
+
+
+#if [ "$ON_BOARD_SPI_FLASH_COMPONENT" == "y" ]; then
+choice 'Ram/Rom version' "RAM UBOOT_RAM \
+                          ROM UBOOT_ROM
+                         " ROM
+#choice 'Small Uboot/Config partition' "Normal_Partition_5_sectors NORMAL_UBOOT_PARTITION \
+#                                      Small_Partition_3_sectors SMALL_UBOOT_PARTITION
+#                                     " Normal_Partition_5_sectors
+#else
+#define_bool UBOOT_RAM y
+#fi
+
+#
+# Enable(uncomment) following line to enable the adjustment for CPU PLL settings in menuconfig,
+# and then input:  make mrproper;make menuconfig
+#define_bool MT7628_CPU_PLL_PARAMETERS y
+
+if [ "$MT7628_CPU_PLL_PARAMETERS" = "y" ]; then
+        if [ "$ON_BOARD_SDR" = "y" ]; then
+                choice 'CPU PLL source' "None CPLL_NONE \
+                                                                AUX0 CPLL_FROM_480MHZ   \
+                                                                AUX1 CPLL_FROM_XTAL \
+                                                                CONF CPLL_FROM_CONF
+                                                                " None
+        else
+                choice 'CPU PLL source' "None CPLL_NONE \
+                                                                AUX0 CPLL_FROM_480MHZ   \
+                                                                AUX1 CPLL_FROM_XTAL \
+                                                                CONF CPLL_FROM_CONF
+                                                                " CONF
+        fi
+
+        if [ "$CPLL_NONE" = "n" ]; then
+                define_hex CPU_PLL_PARAMETERS   1
+        fi
+
+        if [ "$CPLL_FROM_CONF" = "y" ]; then
+                choice '   PLL_MULTI_RATIO conf' "24 MT7628_PLL_MULTI_RATIO_24 \
+                                                25 MT7628_PLL_MULTI_RATIO_25 \
+                                                26 MT7628_PLL_MULTI_RATIO_26 \
+                                                27 MT7628_PLL_MULTI_RATIO_27 \
+                                                28 MT7628_PLL_MULTI_RATIO_28 \
+                                                29 MT7628_PLL_MULTI_RATIO_29 \
+                                                30 MT7628_PLL_MULTI_RATIO_30 \
+                                                " 29
+                if [ "$MT7628_PLL_MULTI_RATIO_24" = "y" ]; then
+                        define_hex      CPLL_MULTI_RATIO_CFG    0
+                fi
+                if [ "$MT7628_PLL_MULTI_RATIO_25" = "y" ]; then
+                        define_hex      CPLL_MULTI_RATIO_CFG    1
+                fi
+                if [ "$MT7628_PLL_MULTI_RATIO_26" = "y" ]; then
+                        define_hex      CPLL_MULTI_RATIO_CFG    2
+                fi
+                if [ "$MT7628_PLL_MULTI_RATIO_27" = "y" ]; then
+                        define_hex      CPLL_MULTI_RATIO_CFG    3
+                fi
+                if [ "$MT7628_PLL_MULTI_RATIO_28" = "y" ]; then
+                        define_hex      CPLL_MULTI_RATIO_CFG    4
+                fi
+                if [ "$MT7628_PLL_MULTI_RATIO_29" = "y" ]; then
+                        define_hex      CPLL_MULTI_RATIO_CFG    5
+                fi
+                if [ "$MT7628_PLL_MULTI_RATIO_30" = "y" ]; then
+                        define_hex      CPLL_MULTI_RATIO_CFG    6
+                fi
+                choice '    PLL_DIV_RATIO conf' "2 MT7628_PLL_DIV_RATIO_2 \
+                                              3 MT7628_PLL_DIV_RATIO_3 \
+                                              4 MT7628_PLL_DIV_RATIO_4 \
+                                             " 2
+                if [ "$MT7628_PLL_DIV_RATIO_2" = "y" ]; then
+                        define_hex      CPLL_DIV_RATIO_CFG      0
+                fi
+                if [ "$MT7628_PLL_DIV_RATIO_3" = "y" ]; then
+                        define_hex      CPLL_DIV_RATIO_CFG      1
+                fi
+                if [ "$MT7628_PLL_DIV_RATIO_4" = "y" ]; then
+                        define_hex      CPLL_DIV_RATIO_CFG      2
+                fi
+
+                #hex "    SSC conf (CPLL_CFG0[4:9])"            CPLL_SSC_CFG                    0x7
+                define_hex      CPLL_SSC_CFG    0x7
+        fi
+else
+        #
+        # Force MT7628 CPU PLL :   SDR: 600MHZ,  DDR1/2: 580Mhz
+        #
+        if [ "$ON_BOARD_SDR" = "y" ]; then
+                define_bool     CPLL_NONE               y
+        else
+                define_bool     CPLL_FROM_CONF          y
+                define_bool     CPLL_NONE               n
+                define_hex      CPU_PLL_PARAMETERS      1
+                define_hex      CPLL_MULTI_RATIO_CFG    5
+                define_hex      CPLL_DIV_RATIO_CFG      0
+                define_hex      CPLL_SSC_CFG            0x7
+        fi
+fi
+
+bool "Dual Image" DUAL_IMAGE_SUPPORT
+
+bool "Partition LAN/WAN" LAN_WAN_PARTITION
+if [ "$LAN_WAN_PARTITION" = "y" ]; then
+ choice 'LAN/WAN Board Layout' "W/LLLL RALINK_DEMO_BOARD_PVLAN \
+                                LLLL/W RALINK_EV_BOARD_PVLAN
+                               "
+fi
+
+if [ "$ON_BOARD_NAND_FLASH_COMPONENT" = "y" ]; then
+bool "Static DRAM Parameter" DRAM_PARAMETERS
+if [ "$DRAM_PARAMETERS" = "y" ]; then
+if [ "$ON_BOARD_SDR" = "y" ]; then
+hex " SDRAM_CFG0"               DRAM_CFG0       12A263A3
+hex " SDRAM_CFG1"               DRAM_CFG1       F80108E8
+else
+hex " SYSCFG1 SoC ODT(hex)"                             SYSCFG1_ODT                     260
+if [ "$ON_BOARD_DDR1" = "y" ]; then
+hex " DDR_CFG0"                         DRAM_CFG0           34A1EB94
+hex " DDR_CFG1"                         DRAM_CFG1           202A2324
+else
+hex " DDR_CFG0"                                                 DRAM_CFG0                       249AA2E5
+hex " DDR_CFG1"                                                 DRAM_CFG1                       22322323
+fi
+hex " DDR_CFG2 CAS Latency"                             DDR_CFG2_CAS            4
+hex " DDR_CFG3 DRAM ODT"                                DDRCFG3_ODT                     0
+hex " DDR_CFG3 Drive Strength"                  DDR_CFG3_DS                     1
+hex " DDR_CFG10 "                                               DDR_CFG10_SETTING       48484848
+bool " DDR_CFG11 DLL Enable Fixed Fine-grain Delay"                     DDR_CFG11_FFD_ENABLE            n
+if [ "$DDR_CFG11_FFD_ENABLE" = "y" ]; then
+define_hex DDR_CFG11_FFD_EN  1
+else
+define_hex DDR_CFG11_FFD_EN  0
+fi
+bool " DDR_CFG11 DLL Enable Fixed Coarse-grain Delay"           DDR_CFG11_FCD_ENABLE            n
+if [ "$DDR_CFG11_FCD_ENABLE" = "y" ]; then
+define_hex DDR_CFG11_FCD_EN  1
+else
+define_hex DDR_CFG11_FCD_EN  0
+fi
+hex " DDR_CFG11 DLL Fixed Fine-grain Delay"                     DDR_CFG11_FFD   0
+hex " DDR_CFG11 DLL Fixed Coarse-grain Delay"           DDR_CFG11_FCD   0
+hex     " DDR ODT Source"                       DDR_ODT_SRC                     d
+hex " DDR ODT Off Delay"                DDR_ODT_OFF_DLY         2
+hex " DDR ODT On Delay"                 DDR_ODT_ON_DLY          2
+fi
+fi
 fi
 
 if [ "$UBOOT_RAM" = "y" ]; then
@@ -1182,3 +1613,4 @@ fi
 
 fi
 ##################################################################################################
+

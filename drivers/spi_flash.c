@@ -211,8 +211,7 @@ int spic_init(void)
 	ra_and(RT2880_GPIOMODE_REG, ~(1 << 1));
 #if defined (RT6855_ASIC_BOARD) || defined (RT6855_FPGA_BOARD)
 	ra_or(RT2880_GPIOMODE_REG, (1 << 11));
-#elif defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD) || \
-      defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+#elif defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
 	/* keep GPIOMODE[11] SPI_GPIO_MODE=0 in spi flash case */
 	ra_and(RT2880_GPIOMODE_REG, ~(1 << 11));
 #endif
@@ -274,7 +273,9 @@ static struct chip_info chips_data [] = {
 	{ "S25FL129P",		0x01, 0x20184D01, 64 * 1024, 256, 0 },
 	{ "S25FL032P",		0x01, 0x02154D00, 64 * 1024, 64,  0 },
 	{ "S25FL064P",		0x01, 0x02164D00, 64 * 1024, 128, 0 },
+	{ "S25FL116K",		0x01, 0x40150140, 64 * 1024, 32,  0 },
 	{ "F25L64QA",           0x8c, 0x41170000, 64 * 1024, 128, 0 }, //ESMT
+	{ "F25L32QA",           0x8c, 0x41168c41, 64 * 1024, 64,  0 }, //ESMT
 	{ "EN25F16",		0x1c, 0x31151c31, 64 * 1024, 32,  0 },
 	{ "EN25Q32B",		0x1c, 0x30161c30, 64 * 1024, 64,  0 },
 	{ "EN25F32",		0x1c, 0x31161c31, 64 * 1024, 64,  0 },
@@ -282,6 +283,8 @@ static struct chip_info chips_data [] = {
 	{ "EN25Q64",            0x1c, 0x30171c30, 64 * 1024, 128,  0 },
 	{ "W25Q32BV",		0xef, 0x40160000, 64 * 1024, 64,  0 }, //S25FL032K
 	{ "W25Q64BV",		0xef, 0x40170000, 64 * 1024, 128,  0 }, //S25FL064K
+	{ "W25Q128BV",          0xef, 0x40180000, 64 * 1024, 256, 0 },
+	{ "W25Q256FV",		0xef, 0x40190000, 64 * 1024, 512, 1 },
 };
 
 #ifdef COMMAND_MODE
@@ -374,6 +377,7 @@ static int raspi_cmd(const u8 cmd, const u32 addr, const u8 mode, u8 *buf, const
 		retval = -1;
 	}	
 	
+	ra_or (RT2880_SPI0_CTL_REG, (SPICTL_SPIENA_HIGH));
 	ra_and(RT2880_SPICFG_REG, ~(SPICFG_SPIENMODE | SPICFG_RXENVDIS));
 
 	return retval;
@@ -639,6 +643,12 @@ static int raspi_4byte_mode(int enable)
 #else
 		retval = spic_read(&code, 1, 0, 0);
 #endif
+		if ((!enable) && (spi_chip_info->id == 0xef))
+		{
+			code = 0x0;
+			raspi_write_enable();
+			raspi_write_rg(&code, 0xc5);
+		}
 		if (retval != 0) {
 			printf("%s: ret: %x\n", __func__, retval);
 			return -1;

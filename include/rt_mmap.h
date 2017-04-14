@@ -276,8 +276,7 @@
 //Clock Conf Register
 #define RALINK_UPHY0_CLK_EN		(1<<25)
 
-#elif defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD) 
-
+#elif defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD)
 #define RALINK_SYSCTL_BASE              0xB0000000
 #define RALINK_TIMER_BASE               0xB0000100
 #define RALINK_INTCL_BASE               0xB0000200
@@ -297,6 +296,88 @@
 #define RALINK_FRAME_ENGINE_BASE        0xB0100000
 #define RALINK_ETH_SW_BASE              0xB0110000
 #define RALINK_USB_DEV_BASE             0x10120000
+#define RALINK_MSDC_BASE                0xB0130000
+#define RALINK_PCI_BASE                 0xB0140000
+#define RALINK_11N_MAC_BASE             0xB0180000
+#define RALINK_USB_HOST_BASE            0x101C0000
+
+#define RALINK_MCNT_CFG                 0xB0000D00
+#define RALINK_COMPARE                  0xB0000D04
+#define RALINK_COUNT                    0xB0000D08
+
+#define RALINK_CPLLCFG0_REG		(RALINK_SYSCTL_BASE+0x54)
+#define RALINK_CPLLCFG1_REG		(RALINK_SYSCTL_BASE+0x58)
+
+//Interrupt Controller
+#define RALINK_INTCTL_SYSCTL            (1<<0)
+#define RALINK_INTCTL_TIMER0            (1<<1)
+#define RALINK_INTCTL_WDTIMER           (1<<2)
+#define RALINK_INTCTL_ILL_ACCESS        (1<<3)
+#define RALINK_INTCTL_PCM               (1<<4)
+#define RALINK_INTCTL_UART              (1<<5)
+#define RALINK_INTCTL_PIO               (1<<6)
+#define RALINK_INTCTL_DMA               (1<<7)
+#define RALINK_INTCTL_PC                (1<<9)
+#define RALINK_INTCTL_I2S               (1<<10)
+#define RALINK_INTCTL_SPI               (1<<11)
+#define RALINK_INTCTL_UARTLITE          (1<<12)
+#define RALINK_INTCTL_CRYPTO            (1<<13)
+#define RALINK_INTCTL_ESW               (1<<17)
+#define RALINK_INTCTL_UHST              (1<<18)
+#define RALINK_INTCTL_UDEV              (1<<19)
+#define RALINK_INTCTL_GLOBAL            (1<<31)
+
+//Reset Control Register
+#define RALINK_SYS_RST                  (1<<0)
+#define RALINK_TIMER_RST                (1<<8)
+#define RALINK_INTC_RST                 (1<<9)
+#define RALINK_MC_RST                   (1<<10)
+#define RALINK_PCM_RST                  (1<<11)
+#define RALINK_UART_RST                 (1<<12)
+#define RALINK_PIO_RST                  (1<<13)
+#define RALINK_DMA_RST                  (1<<14)
+#define RALINK_I2C_RST                  (1<<16)
+#define RALINK_I2S_RST                  (1<<17)
+#define RALINK_SPI_RST                  (1<<18)
+#define RALINK_UARTL_RST                (1<<19)
+#define RALINK_FE_RST                   (1<<21)
+#define RALINK_UHST_RST                 (1<<22)
+#define RALINK_ESW_RST                  (1<<23)
+#define RALINK_EPHY_RST                 (1<<24)
+#define RALINK_UDEV_RST                 (1<<25)
+#define RALINK_PCIE0_RST                (1<<26)
+#define RALINK_PCIE1_RST                (1<<27)
+#define RALINK_MIPS_CNT_RST             (1<<28)
+#define RALINK_CRYPTO_RST               (1<<29)
+
+
+//Clock Conf Register
+#define RALINK_UPHY1_CLK_EN     (1<<22)
+#define RALINK_UPHY0_CLK_EN     (1<<25)
+
+#elif defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
+
+#define RALINK_SYSCTL_BASE              0xB0000000
+#define RALINK_TIMER_BASE               0xB0000100
+#define RALINK_INTCL_BASE               0xB0000200
+#define RALINK_MEMCTRL_BASE             0xB0000300
+#define RALINK_RBUS_MATRIXCTL_BASE      0xB0000400
+#define RALINK_MIPS_CNT_BASE            0x10000500
+#define RALINK_PIO_BASE                 0xB0000600
+#define RALINK_I2C_BASE                 0xB0000900
+#define RALINK_I2S_BASE                 0xB0000A00
+#define RALINK_SPI_BASE                 0xB0000B00
+#define RALINK_UART_LITE_BASE           0x10000C00
+#define RALINK_UART_LITE2_BASE          0x10000D00
+#define RALINK_UART_LITE3_BASE          0x10000E00
+#define RALINK_PCM_BASE                 0xB0002000
+#define RALINK_GDMA_BASE                0xB0002800
+#define RALINK_AES_ENGING_BASE          0xB0004000
+#define RALINK_CRYPTO_ENGING_BASE       RALINK_AES_ENGING_BASE
+#define RALINK_FRAME_ENGINE_BASE        0xB0100000
+#define RALINK_ETH_SW_BASE              0xB0110000
+#define RALINK_USB_DEV_BASE             0x10120000
+#define RALINK_MSDC_BASE                0xB0130000
 #define RALINK_PCI_BASE                 0xB0140000
 #define RALINK_11N_MAC_BASE             0xB0180000
 #define RALINK_USB_HOST_BASE            0x101C0000
@@ -357,32 +438,34 @@
 
 #elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) 
 
-#define RALINK_SYSCTL_BASE              0xB0000000
-#define RALINK_TIMER_BASE               0xB0000100
-#define RALINK_INTCL_BASE               0xB0000200
-#define RALINK_MEMCTRL_BASE             0xB0000300
-#define RALINK_RBUS_MATRIXCTL_BASE      0xB0000400
-#define RALINK_UART_BASE                0x10000500
-#define RALINK_PIO_BASE                 0xB0000600
-#define RALINK_NAND_CTRL_BASE           0xB0000810
-#define RALINK_I2C_BASE                 0xB0000900
-#define RALINK_I2S_BASE                 0xB0000A00
-#define RALINK_SPI_BASE                 0xB0000B00
-#define RALINK_UART_LITE_BASE           0x10000C00
-#define RALINK_MIPS_CNT_BASE            0x10000D00
-#define RALINK_PCM_BASE                 0xB0002000
-#define RALINK_GDMA_BASE                0xB0002800
-#define RALINK_CRYPTO_ENGING_BASE       0xB0004000
-#define RALINK_FRAME_ENGINE_BASE        0xB0100000
-#define RALINK_ETH_SW_BASE              0xB0110000
-#define RALINK_USB_DEV_BASE             0x10120000
-#define RALINK_PCI_BASE                 0xB0140000
-#define RALINK_11N_MAC_BASE             0xB0180000
-#define RALINK_USB_HOST_BASE            0x101C0000
+#define RALINK_SYSCTL_BASE              0xBE000000
+#define RALINK_TIMER_BASE               0xBE000100
+#define RALINK_INTCL_BASE               0xBE000200
+#define RALINK_RBUS_MATRIXCTL_BASE      0xBE000400
+#define RALINK_MIPS_CNT_BASE            0x1E000500
+#define RALINK_PIO_BASE                 0xBE000600
+#define RALINK_SPDIF_BASE               0xBE000700
+#define RALINK_DMA_ARB_BASE             0xBE000800
+#define RALINK_I2C_BASE                 0xBE000900
+#define RALINK_I2S_BASE                 0xBE000A00
+#define RALINK_SPI_BASE                 0xBE000B00
+#define RALINK_UART_LITE_BASE           0xBE000C00
+#define RALINK_UART_LITE2_BASE          0xBE000D00
+#define RALINK_UART_LITE3_BASE          0xBE000E00
+#define RALINK_PCM_BASE                 0xBE002000
+#define RALINK_GDMA_BASE                0xBE002800
+#define RALINK_NAND_CTRL_BASE           0xBE003000
+#define RALINK_NANDECC_CTRL_BASE	0xBE003800
+#define RALINK_CRYPTO_ENGINE_BASE       0xBE004000
+#define RALINK_MEMCTRL_BASE             0xBE005000
+#define RALINK_FRAME_ENGINE_BASE        0xBE100000
+#define RALINK_ETH_GMAC_BASE            0xBE110000
+#define RALINK_ETH_SW_BASE		0xBE110000
+#define RALINK_ROM_BASE                 0xBE118000
+#define RALINK_MSDC_BASE                0xBE130000
+#define RALINK_PCI_BASE                 0xBE140000
+#define RALINK_USB_HOST_BASE            0x1E1C0000
 
-#define RALINK_MCNT_CFG                 0xB0000D00
-#define RALINK_COMPARE                  0xB0000D04
-#define RALINK_COUNT                    0xB0000D08
 
 #define RALINK_CPLLCFG0_REG		(RALINK_SYSCTL_BASE+0x54)
 #define RALINK_CPLLCFG1_REG		(RALINK_SYSCTL_BASE+0x58)
@@ -721,7 +804,7 @@
 #define RALINK_DDR_CFG9		(RALINK_MEMCTRL_BASE+0x64)
 #endif
 
-#if defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
+#if defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD) || defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
 /* CPLL related */
 #define RALINK_CPLLCFG0_REG	(RALINK_SYSCTL_BASE+0x54)
 #define RALINK_CPLLCFG1_REG	(RALINK_SYSCTL_BASE+0x58)
@@ -741,6 +824,14 @@
 
 #if defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD)
 #define RALINK_HIR_REG	(RALINK_SYSCTL_BASE+0x64)
+#endif
+
+#if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
+#define RALINK_PIO_BASE			0xBE000600
+#define RALINK_CLKCFG0_REG		0xBE00002C
+#define RALINK_GPIOMODE_REG		0xBE000060
+#define RALINK_CUR_CLK_STS_REG		0xBE000044
+#define RALINK_DYN_CFG0_REG		0xBE000410
 #endif
 
 #endif // __RALINK_MMAP__

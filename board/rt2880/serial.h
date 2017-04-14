@@ -13,12 +13,19 @@
 /*
  * UART registers
  */
+#if defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) || defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
+#define RT2880_UART1	0x0C00  /* UART Lite */
+#define RT2880_UART2	0x0D00  /* UART Lite */
+#define RT2880_UART3	0x0E00  /* UART Lite */
+#define CFG_RT2880_CONSOLE	RT2880_UART1
+#else
 #define RT2880_UART1	0x0500
 #define RT2880_UART2	0x0C00  /* UART Lite */
-
 #define CFG_RT2880_CONSOLE	RT2880_UART2
+#endif
 
-#if defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) 
+
+#if defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) || defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
 #define RT2880_UART_RBR_OFFSET	0x00
 #define RT2880_UART_TBR_OFFSET	0x00
 #define RT2880_UART_IER_OFFSET	0x04

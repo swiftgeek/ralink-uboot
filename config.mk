@@ -29,8 +29,15 @@ RALINK_SDR_PRECHARGE_POWER_DOWN = OFF		   # for mt7620, it is already enabled by
 RALINK_DDR_SELF_REFRESH_POWER_SAVE_MODE = OFF	   # for mt7620, it is already enabled by default.
 RALINK_SPI_UPGRADE_CHECK = ON
 RALINK_NAND_UPGRADE_CHECK = OFF
+ifeq ($(ON_BOARD_NAND_FLASH_COMPONENT),y)
+ifeq ($(MT7621_ASIC_BOARD),y)
+RALINK_RW_RF_REG_FUN = OFF
+else
 RALINK_RW_RF_REG_FUN = ON
-RALINK_USB = OFF
+endif
+else
+RALINK_RW_RF_REG_FUN = ON
+endif
 RALINK_EHCI = OFF
 RALINK_OHCI = OFF
 RALINK_SSO_TEST_FUN = OFF
@@ -48,7 +55,11 @@ RALINK_SWITCH_DEBUG_FUN = OFF
 ###################################
 # Optimized for Size flag
 ###################################
+ifeq ($(ON_BOARD_NAND_FLASH_COMPONENT),y)
+RALINK_UPGRADE_BY_SERIAL = OFF
+else
 RALINK_UPGRADE_BY_SERIAL = ON
+endif
 RALINK_CMDLINE = ON
 RALINK_MDIO_ACCESS_FUN = ON
 RALINK_EPHY_INIT = ON
@@ -56,7 +67,7 @@ RALINK_EPHY_INIT = ON
 ##############################
 # Decompression Algorithm
 ##############################
-CONFIG_GZIP = ON
+CONFIG_GZIP = OFF
 CONFIG_BZIP2 = OFF
 CONFIG_LZMA = ON
 CONFIG_XZ = OFF
@@ -172,6 +183,10 @@ ifeq ($(RALINK_SWITCH_DEBUG_FUN),ON)
 CPPFLAGS += -DRALINK_SWITCH_DEBUG_FUN
 endif
 
+ifeq ($(RALINK_DUAL_CORE_FUN),y)
+CPPFLAGS += -DRALINK_DUAL_CORE_FUN
+endif
+
 ifeq ($(RALINK_DDR_CONTROLLER_OPTIMIZATION),ON)
 CPPFLAGS += -DRALINK_DDR_OPTIMIZATION
 endif
@@ -199,6 +214,21 @@ endif
 ifeq ($(ON_BOARD_DDR2),y)
 CPPFLAGS += -DRALINK_DDR_POWERSAVE
 endif
+endif
+
+ifeq ($(MT7628_ASIC_BOARD),y)
+ifeq ($(ON_BOARD_DDR1),y)
+CPPFLAGS += -DRALINK_DDR_POWERSAVE
+endif
+ifeq ($(ON_BOARD_DDR2),y)
+CPPFLAGS += -DRALINK_DDR_POWERSAVE
+endif
+endif
+
+ifeq ($(MT7621_MP),y)
+CPPFLAGS += -EL -mmt
+else
+CPPFLAGS += -march=4kc -mtune=4kc
 endif
 
 ifeq ($(RALINK_SPI_UPGRADE_CHECK),ON)
@@ -376,6 +406,13 @@ ifeq ($(MT7620_ASIC_BOARD),y)
 CPPFLAGS += -DMT7620_ASIC_BOARD
 endif
 
+ifeq ($(MT7628_FPGA_BOARD),y)
+CPPFLAGS += -DMT7628_FPGA_BOARD
+endif
+
+ifeq ($(MT7628_ASIC_BOARD),y)
+CPPFLAGS += -DMT7628_ASIC_BOARD
+endif
 
 ifeq ($(MT7621_FPGA_BOARD),y)
 CPPFLAGS += -DMT7621_FPGA_BOARD
@@ -434,6 +471,10 @@ ifeq ($(MT7620_MP),y)
 CPPFLAGS += -DMT7620_MP
 endif
 
+ifeq ($(MT7628_MP),y)
+CPPFLAGS += -DMT7628_MP
+endif
+
 ifeq ($(MT7621_MP),y)
 CPPFLAGS += -DMT7621_MP
 endif
@@ -452,6 +493,10 @@ endif
 
 ifeq ($(MAC_TO_VITESSE_MODE),y)
 CPPFLAGS += -DMAC_TO_VITESSE_MODE
+endif
+
+ifeq ($(MAC_TO_MT7530_MODE),y)
+CPPFLAGS += -DMAC_TO_MT7530_MODE
 endif
 
 ifeq ($(MAC_TO_GIGAPHY_MODE),y)
@@ -492,6 +537,18 @@ endif
 
 ifeq ($(MT7621_USE_GE1),y)
 CPPFLAGS += -DMT7621_USE_GE1
+endif
+
+ifeq ($(GE_RGMII_INTERNAL_P0_AN),y)
+CPPFLAGS += -DGE_RGMII_INTERNAL_P0_AN
+endif
+
+ifeq ($(GE_RGMII_INTERNAL_P4_AN),y)
+CPPFLAGS += -DGE_RGMII_INTERNAL_P4_AN
+endif
+
+ifeq ($(BYPASS_MTK_DDR_CAL),y)
+CPPFLAGS += -DBYPASS_MTK_DDR_CAL
 endif
 
 ifeq ($(GE_MII_FORCE_100),y)
@@ -566,6 +623,9 @@ endif
 ifeq ($(ON_BOARD_DDR2),y)
 CPPFLAGS += -DON_BOARD_DDR2
 endif
+ifeq ($(ON_BOARD_DDR3),y)
+CPPFLAGS += -DON_BOARD_DDR3
+endif
 
 ifeq ($(ON_BOARD_DDR_WIDTH_16),y)
 CPPFLAGS += -DON_BOARD_DDR_WIDTH_16
@@ -602,6 +662,10 @@ CPPFLAGS += -DON_BOARD_1024M_DRAM_COMPONENT
 else
 ifeq ($(ON_BOARD_2048M_DRAM_COMPONENT),y)
 CPPFLAGS += -DON_BOARD_2048M_DRAM_COMPONENT
+else
+ifeq ($(ON_BOARD_4096M_DRAM_COMPONENT),y)
+CPPFLAGS += -DON_BOARD_4096M_DRAM_COMPONENT
+endif
 endif
 endif
 endif
@@ -636,6 +700,9 @@ endif
 
 ifeq ($(ON_BOARD_NAND_FLASH_COMPONENT),y)
 CFG_ENV_IS := IN_NAND
+ifeq ($(MT7621_MP), y)
+CPPFLAGS += -DMTK_NAND
+endif	
 else
 ifeq ($(ON_BOARD_SPI_FLASH_COMPONENT),y)
 CFG_ENV_IS := IN_SPI
@@ -644,7 +711,6 @@ CFG_ENV_IS := IN_FLASH
 endif
 endif
 CPPFLAGS += -DCFG_ENV_IS_$(CFG_ENV_IS)
-
 
 ifdef BUILD_TAG
 CFLAGS := $(CPPFLAGS) -Wall -Wstrict-prototypes \

@@ -1,3 +1,6 @@
+#ifndef __RALINK_NAND_H__
+#define __RALINK_NAND_H__
+
 #include <linux/mtd/nand.h>
 #include <rt_mmap.h>
 
@@ -13,7 +16,7 @@ extern const unsigned int nand_size_map[2][3];
 #define CONFIG_PAGE_SIZE_BIT (is_nand_page_2048? 11 : 9)	//! (1<<PAGE_SIZE) MB
 #define CONFIG_NUMPAGE_PER_BLOCK_BIT (is_nand_page_2048? 6 : 5)	//! order of number of pages a block.
 #define CONFIG_OOBSIZE_PER_PAGE_BIT (is_nand_page_2048? 6 : 4)	//! byte number of oob a page.
-#define CONFIG_BAD_BLOCK_POS (is_nand_page_2048? 5 : 4)		//! offset of byte to denote bad block.
+#define CONFIG_BAD_BLOCK_POS (is_nand_page_2048? 0 : 4)		//! offset of byte to denote bad block.
 #define CONFIG_ECC_BYTES 3		//! ecc has 3 bytes
 #define CONFIG_ECC_OFFSET (is_nand_page_2048? 6 : 5)		//! ecc starts from offset 5.
 
@@ -137,4 +140,4 @@ typedef enum _ra_flags {
 	FLAG_USE_GDMA 	= (1<<1),
 	FLAG_VERIFY 	= (1<<2),
 } RA_FLAGS;
-
+#endif /* __RALINK_NAND_H__ */
