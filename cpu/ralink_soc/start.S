@@ -39,6 +39,8 @@
 #define RALINK_DDR_CFG2					(RALINK_MEMCTRL_BASE+0x48)
 #define RALINK_DDR_CFG3					(RALINK_MEMCTRL_BASE+0x4c)
 #define RALINK_DDR_CFG4					(RALINK_MEMCTRL_BASE+0x50)
+#define RALINK_DDR_CFG8					(RALINK_MEMCTRL_BASE+0x60)
+#define RALINK_DDR_CFG9					(RALINK_MEMCTRL_BASE+0x64)
 #define RALINK_DDR_CFG10				(RALINK_MEMCTRL_BASE+0x68)
 #endif
 #define SDRAM_CFG0_ALWAYS_ONE ( 1 << 31)
@@ -54,10 +56,22 @@ defined(MT7628_FPGA_BOARD) || defined(MT7628_ASIC_BOARD)
 #endif
 #if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD)
 #define DELAY_USEC(us)				((700*(us))/3)
-#elif defined(MT7620_FPGA_BOARD) || defined(MT7620_ASIC_BOARD) || defined(MT7628_FPGA_BOARD) || defined(MT7628_ASIC_BOARD)
+#elif defined(MT7620_FPGA_BOARD) || defined(MT7620_ASIC_BOARD)
 #define DELAY_USEC(us)              ((60*(us))/4)
+#elif defined(MT7628_FPGA_BOARD) || defined(MT7628_ASIC_BOARD) 
+#define DELAY_USEC(us)              ((58*(us))/3)
 #else
 #define DELAY_USEC(us)				((500*(us))/3)
+#endif
+
+#if defined(MT7628_ASIC_BOARD)
+#if defined(ON_BOARD_DDR2)
+#define MT7628_LDO_1P8V	1
+#elif  defined(ON_BOARD_DDR1) && defined(ON_BOARD_64M_DRAM_COMPONENT)
+#define MT7628_LDO_1P8V	1
+#else
+#define MT7628_LDO_2P5V	1
+#endif
 #endif
 
 #define CPLL_DEFAULT_CFG		0x507
@@ -282,6 +296,15 @@ reset:
 	or	$30,$0, $0
 	or	$31,$0, $0
 
+#if defined (MT7628_ASIC_BOARD)
+#if (TEXT_BASE == 0xBFC00000) || (TEXT_BASE == 0xBF000000) || (TEXT_BASE == 0xBC000000)	
+	li	t0, RALINK_SYSCTL_BASE + 0x34
+	lw	t1, 0(t0)
+	ori	t1, t1, 1<<10
+	//	t1, 0x04000400
+	sw	t1, 0(t0)
+#endif	
+#endif	
 # Initialize Misc. Cop0 state	
 
 	# Read status register
@@ -587,7 +610,7 @@ reset:
 #endif
 
 #if (TEXT_BASE == 0xBFC00000) || (TEXT_BASE == 0xBF000000) || (TEXT_BASE == 0xBC000000)
-#if defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7628_ASIC_BOARD) || defined(MT7628_FPGA_BOARD)
+#if defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD)
 	/* warm reset will skip CPU PLL CONFIG */
 	la      t0, RALINK_SYSCTL_BASE+0x38
 	lw      t1, 0(t0)
@@ -623,6 +646,83 @@ reset:
 #endif
 CPLL_DONE:
 #endif
+#if defined(MT7628_ASIC_BOARD) || defined(MT7628_FPGA_BOARD)
+	/* polling CPLL is ready */
+	li		t1, DELAY_USEC(1000000)
+	la		t5, RALINK_SYSCTL_BASE+0x28
+1:
+	lw		t2, 0(t5)
+	andi	t2, t2, 0x1
+	bnez	t2, CPLL_READY
+	subu	t1, t1, 1
+	bgtz	t1, 1b
+	nop	
+	la      t0, RALINK_SYSCTL_BASE+0x2c
+	lw      t3, 0(t0)
+	ori		t3, t3, 0x1
+	sw		t3, 0(t0)
+	j		CPLL_DONE
+	nop
+CPLL_READY:
+	la		t0, RALINK_SYSCTL_BASE+0x2c
+	lw		t1, 0(t0)
+	li		t2, ~0x0C
+	and		t1, t1, t2
+	ori		t1, t1, 0xC
+	sw		t1, 0(t0)
+#if defined(CPUCLK_FROM_BPLL)
+	la      t0, RALINK_DYN_CFG0_REG
+	lw      t3, 0(t0)
+	li      t5, ~((0x0F<<8)|(0x0F<<0))
+	and     t3, t3, t5
+	li      t5, (10<<8)|(1<<0)
+	or      t3, t3, t5
+	sw      t3, 0(t0)
+	
+	la		t0, RALINK_SYSCTL_BASE+0x2c
+	lw		t3, 0(t0)
+	li		t4, ~0x0F
+	and     t3, t3, t4
+	ori		t3, t3, 0xE
+	sw		t3, 0(t0)
+	lw      t3, 0(t0)
+	ori     t3, t3, 0x08
+	sw      t3, 0(t0)
+#elif defined(CPUCLK_FROM_XTAL)
+	la      t0, RALINK_DYN_CFG0_REG
+	lw      t3, 0(t0)
+	li      t5, ~((0x0F<<8)|(0xF<<0))
+	and     t3, t3, t5
+	li      t5, (1<<8)|(1<<0)
+	or      t3, t3, t5
+	sw		t3, 0(t0)
+	lw		t3, 0(t0)
+	li		t0, RALINK_SYSCTL_BASE+0x2c
+	lw		t3, 0(t0)
+	li		t4, ~0x0F
+	and     t3, t3, t4
+	ori     t3, t3, 0xD
+	sw		t3, 0(t0)
+#else	
+	la		t0, RALINK_DYN_CFG0_REG
+	lw		t3, 0(t0)
+	li		t5, ~((0x0F<<8)|(0x0F<<0))
+	and		t3, t3, t5
+	li		t5, (10<<8)|(1<<0)
+	or		t3, t3, t5
+	sw		t3, 0(t0)
+	la		t0, RALINK_SYSCTL_BASE+0x2C	
+	lw		t3, 0(t0)
+	li		t4, ~0x0F	
+	and     t3, t3, t4
+	ori		t3, t3, 0xC
+	sw		t3, 0(t0)
+	lw		t3, 0(t0)
+	ori		t3, t3, 0x08
+	sw		t3, 0(t0)
+#endif
+CPLL_DONE:
+#endif
 
 	/* SDR and DDR initialization: delay 200us
 	 */
@@ -634,14 +734,11 @@ CPLL_DONE:
 	nop
 
 #if defined(ON_BOARD_DDR1)||defined(ON_BOARD_DDR2)
-        
-
+ 
 #if defined(RT6855_FPGA_BOARD)||defined(RT6855_ASIC_BOARD) || \
-    defined(MT7620_FPGA_BOARD)||defined(MT7620_ASIC_BOARD) || \
-    defined(MT7628_FPGA_BOARD)||defined(MT7628_ASIC_BOARD)
-
+    defined(MT7620_FPGA_BOARD)||defined(MT7620_ASIC_BOARD)
 	/* Use default SYSCFG1 setting */
-#if defined(MT7620_FPGA_BOARD) || defined(MT7620_ASIC_BOARD) || defined(MT7628_FPGA_BOARD) || defined(MT7628_ASIC_BOARD)
+#if defined(MT7620_FPGA_BOARD) || defined(MT7620_ASIC_BOARD)
 	li t1, RALINK_SYSCTL_BASE + 0x14
     lw t2, 0(t1)
     nop
@@ -653,7 +750,6 @@ CPLL_DONE:
 #elif defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD)
 	/* set DRAM IO PAD for DDR2 */
 #if defined(ON_BOARD_DDR2)
-
 #if 0
 	la t0, RALINK_SYSCTL_BASE + 0x4
 	lw t1, 0(t0)
@@ -670,8 +766,164 @@ CPLL_DONE:
 	sw t1, 0(t0)
 	nop
 #endif
+#endif /* defined(ON_BOARD_DDR2) */
+#elif defined(MT7628_FPGA_BOARD) || defined(MT7628_ASIC_BOARD)
+	/* set DRAM IO PAD for MT7628IC */
+	/* DDR LDO Enable  */
+	li  t1, RALINK_RGCTRL_BASE+0x100
+	lw  t4, 0(t1)
+	li  t2, (1<<31)
+	or  t4, t4, t2
+	sw  t4, 0(t1)
+	li  t1, RALINK_RGCTRL_BASE+0x10c
+	lw  t4, 0(t1)
+#if defined (MT7628_LDO_1P8V)
+	j		LDO_1P8V
+	nop
+#elif defined (MT7628_LDO_2P5V)
+	j		LDO_2P5V
+	nop
+#else	
+	li  t1, RALINK_SYSCTL_BASE+0xC
+	lw  t2, 0(t1)
+	srl t2, t2, 16
+	andi t2, t2, 0x1
+	beqz t2, LDO_1P8V				/* KN */
+	li	t1, RALINK_SYSCTL_BASE+0x10
+	lw	t3, 0(t1)
+	andi	t3, t3, 0x1
+	bnez	t3, LDO_2P5V
+#endif
+LDO_1P8V:
+	li	t2, ~(1<<6)
+	and	t4, t4, t2
+	//ori	t4, t4, 0x3	/* 1P88V */
+	li  t1, RALINK_RGCTRL_BASE+0x10c
+	sw	t4, 0(t1)
+	j	DDRLDO_SOFT_START
+LDO_2P5V:
+	/* suppose external DDR1 LDO 2.5V */
+	li	t2, 1<<6
+	or	t4, t4, t2
+	li  t1, RALINK_RGCTRL_BASE+0x10c
+	sw	t4, 0(t1)
 
-#endif	
+DDRLDO_SOFT_START:
+	li	t1, RALINK_RGCTRL_BASE+0x10c
+	lw	t2, 0(t1)
+	li	t3, 1<<16
+	or	t2, t2, t3
+	sw	t2, 0(t1)
+	li	t3, DELAY_USEC(250*50)
+LDO_DELAY:
+	subu t3, t3, 1
+	bnez t3, LDO_DELAY
+	nop
+	
+	li  t1, RALINK_RGCTRL_BASE+0x10c
+	lw  t2, 0(t1)
+	li  t3, 1<<18
+	or  t2, t2, t3
+	sw  t2, 0(t1)
+
+SET_RG_BUCK_FPWM:
+	li	t1, RALINK_RGCTRL_BASE+0x104
+	lw	t2, 0(t1)
+	ori t2, t2, 1<<10
+	sw	t2, 0(t1)
+
+DDR_PAD_CFG:
+	/* clean CLK PAD */
+	li  t1, RALINK_RGCTRL_BASE+0x704
+	lw  t2, 0(t1)
+	li	t8, 0xFFFFF0F0
+	and    t2, t2, t8
+	/* clean CMD PAD */
+	li  t1, RALINK_RGCTRL_BASE+0x70c
+	lw  t3, 0(t1)
+	li  t8, 0xFFFFF0F0
+	and    t3, t3, t8
+	/* clean DQ IPAD */
+	li  t1, RALINK_RGCTRL_BASE+0x710
+	lw  t4, 0(t1)
+	li  t8, 0xFFFFF8FF
+	and    t4, t4, t8
+	/* clean DQ OPAD */
+	li  t1, RALINK_RGCTRL_BASE+0x714
+	lw  t5, 0(t1)
+	li  t8, 0xFFFFF0F0
+	and    t5, t5, t8
+	/* clean DQS IPAD */
+	li  t1, RALINK_RGCTRL_BASE+0x718
+	lw  t6, 0(t1)
+	li  t8, 0xFFFFF8FF
+	and    t6, t6, t8
+	/* clean DQS OPAD */
+	li  t1, RALINK_RGCTRL_BASE+0x71c
+	lw  t7, 0(t1)
+	li  t8, 0xFFFFF0F0
+	and    t7, t7, t8
+
+
+	li	t1, RALINK_SYSCTL_BASE+0xC
+	lw	t9, 0(t1)
+	srl	t9, t9, 16
+	andi t9, t9, 0x1	
+	bnez t9, MT7628_AN_DDR1_PAD
+MT7628_KN_PAD:
+	li	t8, 0x00000303
+	or	t2, t2, t8
+	or	t3, t3, t8
+	or	t5, t5, t8
+	or	t7,	t7, t8
+	li	t8, 0x00000000
+	or	t4, t4, t8
+	or	t6, t6, t8
+	j	SET_PAD_CFG
+MT7628_AN_DDR1_PAD:
+	li	t1, RALINK_SYSCTL_BASE+0x10
+	lw	t1, 0(t1)
+	andi	t1, t1, 0x1
+	beqz t1, MT7628_AN_DDR2_PAD
+	li  t8, 0x00000C0C
+	or	t2, t2, t8
+    li  t8, 0x00000202
+	or	t3, t3, t8
+    li  t8, 0x00000707
+	or	t5, t5, t8
+	li  t8, 0x00000C0C
+	or	t7, t7, t8
+	li  t8, 0x00000000
+	or	t4, t4, t8
+	or	t6, t6, t8
+	j	SET_PAD_CFG
+MT7628_AN_DDR2_PAD:
+	li  t8, 0x00000C0C
+	or  t2, t2, t8
+	li  t8, 0x00000202
+	or  t3, t3, t8
+	li  t8, 0x00000404
+	or  t5, t5, t8
+	li  t8, 0x00000C0C
+	or  t7, t7, t8
+	//li  t8, 0x00000200
+	li	t8, 0x00000000		//ODT off
+	or  t4, t4, t8
+	or  t6, t6, t8
+
+SET_PAD_CFG:
+	li  t1, RALINK_RGCTRL_BASE+0x704
+	sw	t2, 0(t1)
+	li  t1, RALINK_RGCTRL_BASE+0x70c
+	sw	t3, 0(t1)
+	li  t1, RALINK_RGCTRL_BASE+0x710
+	sw	t4, 0(t1)
+	li  t1, RALINK_RGCTRL_BASE+0x714
+	sw	t5, 0(t1)
+	li  t1, RALINK_RGCTRL_BASE+0x718
+	sw	t6, 0(t1)
+	li  t1, RALINK_RGCTRL_BASE+0x71c
+	sw	t7, 0(t1)
 #else
 	/* DDR initialization: reg SYSCFG1[25:16]: 
 	 * ODT disabled, LVCMOS=1, half drive, turn ON RT3662 DDR IO ODT as 150 ohm when read DRAM
@@ -697,7 +949,9 @@ CPLL_DONE:
 	sw t2, 0(t1)
 	nop
 
-#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD)
+#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD) || \
+	defined(MT7628_FPGA_BOARD) || defined(MT7628_ASIC_BOARD)
+
 	li t0, DELAY_USEC(200+40)
 	li t1, 0x1
 1:
@@ -820,6 +1074,11 @@ DDR_READY:
 #endif
 	sw	t1, 0(t0)
 	nop
+#elif defined(MT7628_FPGA_BOARD) || defined(MT7620_FPGA_BOARD)
+	li  t0, RALINK_MEMCTRL_BASE + 0x50
+	li  t1, 0x0
+	sw      t1, 0(t0)
+	nop
 #endif
 #if defined (RT3352_FPGA_BOARD) || defined (RT3883_FPGA_BOARD) || defined (RT6855_FPGA_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7628_FPGA_BOARD)
 	/* DDR initialization: DDR_CFG0 bit 12:0 (refresh interval) to 0x64
@@ -830,8 +1089,8 @@ DDR_READY:
 	nop
 	and t2, ~(0xfff)
 #if defined(ON_BOARD_DDR1)
-#if defined(MT7628_FPGA_BOARD)
-	li t2, 0x2088205E
+#if defined(MT7628_FPGA_BOARD) || defined(MT7620_FPGA_BOARD)
+	li t2, 0x110860f9
 #else
 	li t2, 0x21086141
 #endif
@@ -1217,7 +1476,7 @@ DDR_READY:
 #endif
 #endif	/* defined(ON_BOARD_DDR2) */
 
-#if	defined(CPLL_FROM_480MHZ)
+#if	defined(CPLL_FROM_480MHZ)|| defined (CPUCLK_FROM_BPLL)
 	addiu	t6, zero, 1
 #else
 	addiu	t6, zero, 0
@@ -1290,10 +1549,27 @@ DDR_READY:
 	sw		t9, 0(t0)
 	nop
 #if defined(ON_BOARD_DDR2)	
+#if defined(MT7620_ASIC_BOARD) 	
 	la		t0, RALINK_DDR_CFG10
 	li		t1, 0x40404848
 	sw		t1, 0(t0)
-#endif	
+#endif
+#endif
+
+#if defined(MT7628_ASIC_BOARD)
+	li  t1, RALINK_SYSCTL_BASE+0xC
+	lw  t9, 0(t1)
+	srl t9, t9, 16
+	andi t9, t9, 0x1
+	beqz t9, 1f
+	la      t0, RALINK_DDR_CFG8
+	li      t1, 0x00008282
+	sw      t1, 0(t0)
+	la      t0, RALINK_DDR_CFG9
+	li      t1, 0x00008383
+	sw      t1, 0(t0)
+1:	
+#endif
     la      t0, RALINK_DDR_CFG0
 	sw		DDR_CFG0_MIPSREG, 0(t0)
 	nop
@@ -1735,14 +2011,22 @@ tRFCinit:
 	/* DDR: enable self auto refresh for power saving
 	 * enable it by default for both RAM and ROM version (for CoC)
 	 */
+#if defined(MT7628_FPGA_BOARD) || defined(MT7628_ASIC_BOARD)
+	li	t0, RALINK_MEMCTRL_BASE + 0x14
+#else
 	li	t0, RALINK_MEMCTRL_BASE + 0x1C
+#endif
 	lw	t1, 0(t0)
 	nop
 	and	t1, 0xff000000
 	or	t1, 0x01
 	sw	t1, 0(t0)
 	nop
+#if defined(MT7628_FPGA_BOARD) || defined(MT7628_ASIC_BOARD)
+	li	t0, RALINK_MEMCTRL_BASE + 0x10
+#else
 	li	t0, RALINK_MEMCTRL_BASE + 0x18
+#endif
 	lw	t1, 0(t0)
 	nop
 	or	t1, 0x10
@@ -1758,7 +2042,11 @@ tRFCinit:
 #if defined(RALINK_SDR_POWERSAVE)
 	/* SDR:enable precharge power saving
 	 */
+#if defined(MT7628_FPGA_BOARD) || defined(MT7628_ASIC_BOARD)
+	li	t0, RALINK_MEMCTRL_BASE + 0x14
+#else
 	li	t0, RALINK_MEMCTRL_BASE + 0x1C
+#endif
 	lw	t1, 0(t0)
 	nop
 	and	t1, 0xff000000
@@ -1795,7 +2083,7 @@ tRFCinit:
 #endif
 #endif  // defined(RT3352_FPGA_BOARD) || defined (RT3352_ASIC_BOARD) //
 	//gpiomode for non 6855A
-#if !defined(RT6855A_FPGA_BOARD) && !defined(RT6855A_ASIC_BOARD)
+#if !defined(RT6855A_FPGA_BOARD) && !defined(RT6855A_ASIC_BOARD) && !defined(MT7628_ASIC_BOARD)
 	li t5, RALINK_SYSCTL_BASE + 0x0060
 	lw t6, 0(t5)
 	nop
@@ -1809,12 +2097,14 @@ tRFCinit:
 	and t6, ~(0x1<<4)
 	and t6, ~(0x1<<5)
 	and t6, ~(0x1<<6)
+#elif  defined(MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
+	/* Need add code for MT7628IC GPIO mode */ 
 #else
 	/* enable normal function i2c, spi, uartl, jtag, mdio, ge1 */
 	and t6, ~(0xf<<7)
 	and t6, ~(0x3<<5)
 	and t6, ~(0x3)
-#if defined(MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD) || defined(MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
+#if defined(MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD)
 	and t6, ~(0xf<<16)
 	/* set PERST_N to GPIO MODE */
 	or	t6, (0x2<<16)
@@ -1845,7 +2135,7 @@ tRFCinit:
 #endif
 #endif
 
-#if defined(MT7620_ASIC_BOARD) || defined(MT7628_ASIC_BOARD)
+#if defined(MT7620_ASIC_BOARD)
 #if defined(P5_MAC_TO_PHY_MODE)
 	//set mdio pin to normal mode
 	and t6, ~(0x2<<7)
@@ -1907,7 +2197,7 @@ tRFCinit:
 	/* SPI_HOLD should not set as GPIO output */	
 	//set all GPIO to output high
         li t5, RALINK_PIO_BASE + 0x24
-#if defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7628_ASIC_BOARD) || defined(MT7628_FPGA_BOARD)
+#if defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD)
 	/* for MT7620 RFB power saving, change UARTF pins to input mode */
         li t6, 0x00ff807f
 #else
@@ -1921,6 +2211,20 @@ tRFCinit:
         nop
         sw t6, 0(t5)
         nop
+#if defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD)
+#if 0	// set GPIO36(PERST_N) to output mode and pull low
+	li	t0, RALINK_PIO_BASE + 0x4C
+	lw	t1, 0(t0)
+	li	t2, 1<<12
+	or	t1, t1, t2
+	sw	t1, 0(t0)
+	li	t0, RALINK_PIO_BASE + 0x48
+	lw	t1, 0(t0)
+	li	t2, ~(1<<12)
+	and	t1, t1, t2
+	sw	t1, 0(t0)
+#endif
+#endif
 		
 #if defined(RT3052_ASIC_BOARD) || defined (RT3052_FPGA_BOARD)
 #if defined(ON_BOARD_16BIT_DRAM_BUS)
@@ -2004,7 +2308,7 @@ tRFCinit:
 	//turn on power LED (GPIO ?)
 #elif defined(RT5350_ASIC_BOARD)
 	//turn on power LED (GPIO ?)
-#elif defined(RT6855_ASIC_BOARD) || defined(MT7620_ASIC_BOARD) || defined(MT7628_ASIC_BOARD)
+#elif defined(RT6855_ASIC_BOARD) || defined(MT7620_ASIC_BOARD)
 	//turn on power LED (GPIO ?)
 #elif defined(RT3883_ASIC_BOARD)
 	//turn on power LED (GPIO ?)
@@ -2087,7 +2391,15 @@ tRFCinit:
 1:
 	lw	gp, 0(ra)
 #endif
-	
+#if (TEXT_BASE == 0xBFC00000) || (TEXT_BASE == 0xBF000000) || (TEXT_BASE == 0xBC000000)
+#if defined (CONFIG_DDR_CAL)
+	bal		lock_dcache
+	nop
+	bal		fill_icache
+	nop
+	li		sp, 0x89000000+0x1F00
+#endif	
+#endif	
 	la	t9, board_init_f
 	j	t9
 	nop
@@ -2105,6 +2417,12 @@ tRFCinit:
 	.globl	relocate_code
 	.ent	relocate_code
 relocate_code:
+#if (TEXT_BASE == 0xBFC00000) || (TEXT_BASE == 0xBF000000) || (TEXT_BASE == 0xBC000000)
+#if defined (CONFIG_DDR_CAL)
+	bal		unlock_dcache
+	nop
+#endif
+#endif
 	move	sp, a0		/* Set new stack pointer		*/
 
 	li	t0, CFG_MONITOR_BASE
@@ -2547,12 +2865,20 @@ DDR2_CFG2_TBL:
 		.text
 		.align	3
 DDR2_CFG3_TBL:
+#if defined(MT7628_ASIC_BOARD)
+					/* 200MHZ */        /* 160MHZ */
+		.word       0x00000452,         0x00000452
+		.word       0x00000452,         0x00000452
+		.word       0x00000452,         0x00000452
+		.word       0x00000452,         0x00000452
+
+#else
 					/* 200MHZ */		/* 160MHZ */
 		.word		0x00000416, 		0x00000416
 		.word		0x00000416, 		0x00000416
 		.word		0x00000416, 		0x00000416
 		.word		0x00000416, 		0x00000416
-		
+#endif		
 		.text
 		.align	3
 DDR2_CFG4_TBL:
@@ -2641,3 +2967,90 @@ DDR2_CFG3_TBL:
 DDR2_CFG4_TBL:
 		.word	0x0010080C, 	0x0000000B,		0x0000000B,		0x0000000B
 #endif	
+
+#if (TEXT_BASE == 0xBFC00000) || (TEXT_BASE == 0xBF000000) || (TEXT_BASE == 0xBC000000)
+#if defined (CONFIG_DDR_CAL)
+		/* === lock d$ === */	
+		.globl	lock_dcache
+		.ent	lock_dcache
+lock_dcache:
+		lui	$14, 0x8900		# Get a KSeg0 address for cacheops
+		move	$12, $14
+		li		$10, 4
+2:	
+		# Set TagLo registers
+		li	$13, 0x1FFFF800
+		and	$13, $13, $12
+		ori	$13, $13, (0x1<<5)|(0x1<<7)
+		mtc0	$13, $28, 2
+		move	$9, $12
+		li	$15, 64
+		li	$11, 32
+		# Index Store Tag Cache Op
+		# Will invalidate the tag entry, clear the lock bit, and clear the LRF bit
+1:	cache	0x9, 0($9)
+		add	$15, -1			# Decrement set counter
+		bne	$15, $0, 1b
+		add	$9, $11		# Get next line address
+				
+		addiu	$12, 0x800
+		subu	$10, 1
+		bgtz	$10, 2b
+		nop
+		jr		ra
+		nop
+		jr		ra
+		nop
+		.end	lock_dcache
+		
+		/* === unlock d$ === */	
+		.globl	unlock_dcache
+		.ent	unlock_dcache
+unlock_dcache:
+		lui	$14, 0x8000		# Get a KSeg0 address for cacheops
+		move	$12, $14
+		li		$10, 4
+2:	
+		# Clear TagLo/TagHi registers
+		mtc0	$0, $28, 2
+		move	$9, $12
+		li	$15, 64
+		li	$11, 32
+		# Index Store Tag Cache Op
+		# Will invalidate the tag entry, clear the lock bit, and clear the LRF bit
+1:	cache	0x9, 0($9)
+		add	$15, -1			# Decrement set counter
+		bne	$15, $0, 1b
+		add	$9, $11		# Get next line address		
+		
+		subu	$10, 1
+		bgtz	$10, 2b
+		nop
+		jr		ra
+		nop
+		
+		.end	unlock_dcache
+
+		/* === fill I$ === */			
+		.globl	fill_icache
+		.ent	fill_icache
+fill_icache:
+		lui		$14, %hi(dram_cali)		# Get a KSeg0 address for cacheops
+		addiu	$14, %lo(dram_cali)
+
+		li	$13, 0xDFFFFFFF
+		and	$13, $13, $14
+		li	$15, 512
+		li	$11, 32
+		# Fill Cache Op
+1:	cache	0x14, 0($13)
+		add	$15, -1			# Decrement set counter
+		nop
+		bne	$15, $0, 1b
+		add	$13, $11		# Get next line address		
+
+		jr		ra
+		nop
+		.end	fill_icache
+#endif
+#endif

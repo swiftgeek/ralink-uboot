@@ -30,6 +30,9 @@
  * http://developer.apple.com/techpubs/mac/Devices/Devices-126.html#MARKER-14-92
  */
 
+#include <linux/compiler.h>
+#include <asm/addrspace.h>
+#include <asm/byteorder.h>
 #include <common.h>
 #include <command.h>
 #include <ide.h>
@@ -87,7 +90,8 @@ static int test_block_type(unsigned char *buffer)
 
 int test_part_dos (block_dev_desc_t *dev_desc)
 {
-	unsigned char buffer[DEFAULT_SECTOR_SIZE];
+	unsigned char tmp_buffer[DEFAULT_SECTOR_SIZE];
+	unsigned char *buffer = KSEG1ADDR(&tmp_buffer[0]);
 
 	if ((dev_desc->block_read(dev_desc->dev, 0, 1, (ulong *) buffer) != 1) ||
 	    (buffer[DOS_PART_MAGIC_OFFSET + 0] != 0x55) ||
@@ -102,7 +106,8 @@ int test_part_dos (block_dev_desc_t *dev_desc)
 static void print_partition_extended (block_dev_desc_t *dev_desc, int ext_part_sector, int relative,
 							   int part_num)
 {
-	unsigned char buffer[DEFAULT_SECTOR_SIZE];
+	unsigned char tmp_buf[DEFAULT_SECTOR_SIZE];
+	unsigned char *buffer = KSEG1ADDR(&tmp_buf[0]);
 	dos_partition_t *pt;
 	int i;
 
@@ -166,7 +171,8 @@ static int get_partition_info_extended (block_dev_desc_t *dev_desc, int ext_part
 				 int relative, int part_num,
 				 int which_part, disk_partition_t *info)
 {
-	unsigned char buffer[DEFAULT_SECTOR_SIZE];
+	unsigned char tmp_buf[DEFAULT_SECTOR_SIZE];
+	unsigned char *buffer = KSEG1ADDR(&tmp_buf[0]);
 	dos_partition_t *pt;
 	int i;
 

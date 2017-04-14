@@ -29,6 +29,15 @@
 #endif
 
 /*
+ *  Configure language
+ */
+#ifdef __ASSEMBLY__
+#define _ULCAST_
+#else
+#define _ULCAST_ (unsigned long)
+#endif
+
+/*
  * Coprocessor 0 register names
  */
 #define CP0_INDEX $0
@@ -160,6 +169,12 @@
 #define PM_16M  0x01ffe000
 #endif
 
+#define MIPS_CONF1_DL_SHIFT	10
+#define MIPS_CONF1_DL		(_ULCAST_(7) << 10)
+#define MIPS_CONF1_IL_SHIFT	19
+#define MIPS_CONF1_IL		(_ULCAST_(7) << 19)
+
+
 /*
  * Values used for computation of new tlb entries
  */
@@ -174,6 +189,21 @@
 /*
  * Macros to access the system control coprocessor
  */
+#define __read_32bit_c0_register(source, sel)			\
+({ int __res;							\
+	if (sel == 0)						\
+		__asm__ __volatile__(				\
+			"mfc0\t%0, " #source "\n\t"		\
+			: "=r" (__res));			\
+	else							\
+		__asm__ __volatile__(				\
+			".set\tmips32\n\t"			\
+			"mfc0\t%0, " #source ", " #sel "\n\t"	\
+			".set\tmips0\n\t"			\
+			: "=r" (__res));			\
+	 __res;							\
+})
+
 #define read_32bit_cp0_register(source)                         \
 ({ int __res;                                                   \
 	__asm__ __volatile__(                                   \
@@ -313,6 +343,8 @@ change_cp0_##name(unsigned int change, unsigned int new)	\
 								\
 	return res;                                             \
 }
+
+#define read_c0_config1()	__read_32bit_c0_register($16, 1)
 
 __BUILD_SET_CP0(status,CP0_STATUS)
 __BUILD_SET_CP0(cause,CP0_CAUSE)

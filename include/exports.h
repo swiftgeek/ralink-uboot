@@ -16,8 +16,8 @@ void install_hdlr(int, interrupt_handler_t*, void*);
 void free_hdlr(int);
 void *malloc(size_t);
 void free(void*);
-void udelay(unsigned long);
-unsigned long get_timer(unsigned long);
+__attribute__((nomips16)) void udelay(unsigned long);
+__attribute__((nomips16)) unsigned long get_timer(unsigned long);
 void vprintf(const char *, va_list);
 void do_reset (void);
 

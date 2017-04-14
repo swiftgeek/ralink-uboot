@@ -41,6 +41,12 @@ int rootdev;
 struct ehci_hccr *hccr;	/* R/O registers, not need for volatile */
 volatile struct ehci_hcor *hcor;
 
+#if defined(MT7628_ASIC_BOARD)
+int phy_init_flag = false;
+int slewrate_cal_flag = false;
+#define U2_SR_COEF_7628 32
+#endif
+
 uint16_t portreset;
 struct QH qh_list_global __attribute__((aligned(32)));
 struct QH *qh_list = NULL;
@@ -209,6 +215,170 @@ static inline void ehci_invalidate_dcache(struct QH *qh)
 {
 }
 #endif /* CONFIG_EHCI_DCACHE */
+
+#if defined(MT7628_ASIC_BOARD)
+static int PhyWriteField32(int addr, int offset, int mask, int value)
+{
+	int cur_value;
+	int new_value;
+
+	cur_value = readl(addr);
+	new_value = (cur_value & (~mask) | ((value << offset) & mask));
+	writel(new_value, addr);
+
+	return 0;
+}
+
+static int ehci_phy_init(void)
+{
+	int temp;
+
+	//printf("**************************\n");
+        //printf("*     Enter phy_init     *\n");
+        //printf("**************************\n");
+	if (phy_init_flag == false) {	
+		temp = readl(U2_PHY_BASE+0x8);
+		//printf(" 1. u2phyac2(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x8), temp);
+		
+		temp = readl(U2_PHY_BASE+0x10);
+		//printf(" 2. u2phyacr0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x10), temp); 
+
+		temp = readl(U2_PHY_BASE+0x60);
+		//printf(" 3. u2phydcr0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x60), temp);
+
+
+		writel(0xffff02, (U2_PHY_BASE+0x60));
+		temp = readl(U2_PHY_BASE+0x60);
+		//printf(" 4. u2phydcr0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x60), temp);	
+
+		writel(0x555502, (U2_PHY_BASE+0x60));
+		temp = readl(U2_PHY_BASE+0x60);
+                //printf(" 5. u2phydcr0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x60), temp);
+
+		writel(0xaaaa02, (U2_PHY_BASE+0x60));
+		temp = readl(U2_PHY_BASE+0x60);
+                printf(" 6. u2phydcr0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x60), temp);
+
+		writel(0x402, (U2_PHY_BASE+0x60));
+		temp = readl(U2_PHY_BASE+0x60);
+                //printf(" 7. u2phydcr0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x60), temp);
+
+		writel(0x48086a, (U2_PHY_BASE+0x0));
+		//temp = readl(U2_PHY_BASE+0x0);
+                //printf(" 8. u2phyac0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x0), temp);
+
+		writel(0x4400001c, (U2_PHY_BASE+0x04));
+		//temp = readl(U2_PHY_BASE+0x04);
+                //printf(" 9. u2phyac1(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x04), temp);
+
+		writel(0xc0200000, (U2_PHY_BASE+0x1c));
+		//temp = readl(U2_PHY_BASE+0x1c);
+                //printf("10. u2phyacr3(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x1c), temp);
+
+		writel(0x2000000, (U2_PHY_BASE+0x68));
+		//temp = readl(U2_PHY_BASE+0x68);
+                //printf("11. u2phydtm0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x68), temp);
+
+		phy_init_flag = true;
+	}
+	return 0;
+}
+
+static int mt7628_u2_slew_rate_calibration(void)
+{ 
+	int temp;
+	int i;
+	int u4FmOut;
+	int fgRet;
+	int u4Tmp;
+
+	//printf("******************************************\n");
+        //printf("*     Enter u2_slew_rate_calibration     *\n");
+        //printf("******************************************\n");
+
+	if (slewrate_cal_flag == false) {
+		slewrate_cal_flag = true;
+		
+		PhyWriteField32((U2_PHY_BASE+0x10), (23), (0x1<<23), 0x1);
+		mdelay(1);
+		//temp = readl(U2_PHY_BASE+0x10);
+		//printf(" 1. u2phyacr0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x10), temp);
+
+		PhyWriteField32((SIFSLV_FM_FEG_BASE+0x10), (8), (0x1<<8), 1);	
+		//temp = readl(SIFSLV_FM_FEG_BASE+0x10);
+		//printf(" 2. fmmonr1(0x%08x)=0x%08x\n", (SIFSLV_FM_FEG_BASE+0x10), temp);
+
+		PhyWriteField32((SIFSLV_FM_FEG_BASE+0x0), (0), (0xffffff<<0), 0x400);
+		//temp = readl(SIFSLV_FM_FEG_BASE+0x0);
+		//printf(" 3. fmcr0(0x%08x)=0x%08x\n", (SIFSLV_FM_FEG_BASE+0x0), temp);	
+
+		PhyWriteField32((SIFSLV_FM_FEG_BASE+0x0), (24), (0x1<<24), 0x1);
+		//temp = readl(SIFSLV_FM_FEG_BASE+0x0);
+		//printf(" 4. fmcr0(0x%08x)=0x%08x\n", (SIFSLV_FM_FEG_BASE+0x0), temp);
+
+		for(i=0; i<10; i++)
+		{
+			u4FmOut = readl(SIFSLV_FM_FEG_BASE+0x0c);
+			printf(" FM_OUT value: u4FmOut = %d(0x%08X)\n", u4FmOut, u4FmOut);
+			//temp = readl(SIFSLV_FM_FEG_BASE+0x0c);
+			//printf(" 5. fmmonr0(0x%08x)=0x%08x\n", (SIFSLV_FM_FEG_BASE+0x0c), temp);
+
+			if (u4FmOut != 0)
+			{
+				fgRet = 0;
+				printf(" FM detection done! loop = %d\n", i);
+
+				break;
+			}
+
+			fgRet = 1;
+			mdelay(1);
+		}
+
+		PhyWriteField32((SIFSLV_FM_FEG_BASE+0x0), (24), (0x1<<24), 0);
+		//temp = readl(SIFSLV_FM_FEG_BASE+0x0);
+                //printf(" 6. fmcr0(0x%08x)=0x%08x\n", (SIFSLV_FM_FEG_BASE+0x0), temp);
+
+		PhyWriteField32((SIFSLV_FM_FEG_BASE+0x10), (8), (0x1<<8), 0);
+		//temp = readl(SIFSLV_FM_FEG_BASE+0x10);
+                //printf(" 7. fmmonr1(0x%08x)=0x%08x\n", (SIFSLV_FM_FEG_BASE+0x10), temp);
+
+		PhyWriteField32((U2_PHY_BASE+0x10), (23), (0x1<<23), 0);
+		mdelay(1);
+		//temp = readl(U2_PHY_BASE+0x10);
+                //printf(" 8.  u2phyacr0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x10), temp);
+
+		if (u4FmOut == 0)
+		{
+			PhyWriteField32((U2_PHY_BASE+0x10), (16), (0x7<<16), 0x4);
+			//temp = readl(U2_PHY_BASE+0x10);
+                	//printf(" 9.  u2phyacr0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x10), temp);
+
+			fgRet = 1;
+		}
+		else
+		{
+			// set reg = (1024/FM_OUT) * 25 * 0.028 (round to the nearest digits)
+                        u4Tmp = (((1024 * 25 * U2_SR_COEF_7628) / u4FmOut) + 500) / 1000;
+			printf(" SR calibration value u1SrCalVal = %d\n", u4Tmp);
+
+			PhyWriteField32((U2_PHY_BASE+0x10), (16), (0x7<<16), u4Tmp);
+			//temp = readl(U2_PHY_BASE+0x10);
+                	//printf("10.  u2phyacr0(0x%08x)=0x%08x\n", (U2_PHY_BASE+0x10), temp);
+		}
+	}
+	printf("\n\n");
+	return fgRet;
+}
+
+static int mt7628_phy_init(void)
+{
+	ehci_phy_init();
+	mt7628_u2_slew_rate_calibration();
+
+	return 0;
+}
+#endif
 
 static int handshake(uint32_t *ptr, uint32_t mask, uint32_t done, int usec)
 {
@@ -836,12 +1006,12 @@ unknown:
 	return -1;
 }
 
-int usb_lowlevel_stop(void)
+int usb_lowlevel_stop(int index)
 {
 	return ehci_hcd_stop();
 }
 
-int usb_lowlevel_init(void)
+int usb_lowlevel_init(int index, enum usb_init_type init, void **controller)
 {
 	uint32_t reg;
 	uint32_t cmd;
@@ -852,6 +1022,10 @@ int usb_lowlevel_init(void)
 	/* EHCI spec section 4.1 */
 	if (ehci_reset() != 0)
 		return -1;
+
+#if defined(MT7628_ASIC_BOARD)
+	mt7628_phy_init();
+#endif
 
 #if defined(CONFIG_EHCI_HCD_INIT_AFTER_RESET)
 	if (ehci_hcd_init() != 0)

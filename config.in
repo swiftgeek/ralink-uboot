@@ -24,7 +24,8 @@ choice 'Chip ID'	 "RT2880 RT2880_FPGA_BOARD \
                           RT5350 RT5350_FPGA_BOARD \
                           RT6855A RT6855A_FPGA_BOARD \
                           MT7620 MT7620_FPGA_BOARD \
-                          MT7621 MT7621_FPGA_BOARD
+                          MT7621 MT7621_FPGA_BOARD \
+                          MT7628 MT7628_FPGA_BOARD
                          "
 else
 choice 'Chip ID'	" RT2880 RT2880_ASIC_BOARD \
@@ -35,7 +36,8 @@ choice 'Chip ID'	" RT2880 RT2880_ASIC_BOARD \
                           RT5350 RT5350_ASIC_BOARD \
                           RT6855A RT6855A_ASIC_BOARD \
                           MT7620 MT7620_ASIC_BOARD \
-                          MT7621 MT7621_ASIC_BOARD
+                          MT7621 MT7621_ASIC_BOARD \
+                          MT7628 MT7628_ASIC_BOARD
                          "
 fi
 
@@ -921,6 +923,7 @@ comment ""
 define_bool PDMA_NEW y
 define_bool RX_SCATTER_GATTER_DMA y
 
+#bool "Tiny Uboot" CONFIG_TINY_UBOOT
 
 if [ "$ON_BOARD_SPI_FLASH_COMPONENT" == "y" ]; then
 choice 'Ram/Rom version' "RAM UBOOT_RAM \
@@ -1282,6 +1285,7 @@ choice 'DDR Component' "512Mb  ON_BOARD_512M_DRAM_COMPONENT  \
 			" 1024Mb
 
 choice 'DRAM Speed'    "1200Mhz MT7621_DDR_1200MHZ \
+			1066Mhz MT7621_DDR_1066MHZ \
 			800Mhz MT7621_DDR_800MHZ \
 			400Mhz MT7621_DDR_400MHZ
 			"800Mhz
@@ -1294,11 +1298,14 @@ choice 'DRAM Speed'    "1200Mhz MT7621_DDR_1200MHZ \
 if [ "$MT7621_DDR_1200MHZ" = "y" ]; then
     define_hex  MT7621_DDR_SPEED    11
 fi
-if [ "$MT7621_DDR_800MHZ" = "y" ]; then
+if [ "$MT7621_DDR_1066MHZ" = "y" ]; then
     define_hex  MT7621_DDR_SPEED    21
 fi
-if [ "$MT7621_DDR_400MHZ" = "y" ]; then
+if [ "$MT7621_DDR_800MHZ" = "y" ]; then
     define_hex  MT7621_DDR_SPEED    31
+fi
+if [ "$MT7621_DDR_400MHZ" = "y" ]; then
+    define_hex  MT7621_DDR_SPEED    41
 fi
 
 choice 'CPU Frequency' " 880Mhz MT7621_CPU_880MHZ \
@@ -1306,8 +1313,11 @@ choice 'CPU Frequency' " 880Mhz MT7621_CPU_880MHZ \
 		   				800Mhz MT7621_CPU_800MHZ \
 						500Mhz MT7621_CPU_500MHZ \
 						50Mhz MT7621_CPU_50MHZ"
-						880Mhz
+						800Mhz
 
+if [ "$MT7621_CPU_900MHZ" = "y" ]; then
+    define_hex  MT7621_CPU_FREQUENCY    384
+fi
 if [ "$MT7621_CPU_880MHZ" = "y" ]; then
     define_hex  MT7621_CPU_FREQUENCY    370
 fi
@@ -1331,6 +1341,8 @@ comment ""
 define_bool PDMA_NEW y
 define_bool RX_SCATTER_GATTER_DMA y
 
+#bool "Tiny Uboot" CONFIG_TINY_UBOOT
+
 if [ "$ON_BOARD_SPI_FLASH_COMPONENT" == "y" ]; then
 choice 'Ram/Rom version' "RAM UBOOT_RAM \
 			  ROM UBOOT_ROM 
@@ -1341,6 +1353,7 @@ fi
 
 bool "Dual Image" DUAL_IMAGE_SUPPORT
 bool "Dual Core Support" RALINK_DUAL_CORE_FUN
+define_bool RALINK_DUAL_VPE_FUN	y
 
 bool "Partition LAN/WAN" LAN_WAN_PARTITION
 if [ "$LAN_WAN_PARTITION" = "y" ]; then
@@ -1356,8 +1369,10 @@ choice 'DDR Chip' "\
 	DDR3_Default(2Gb) DEFAULT_DDR3_2048M \
 	DDR3_Default(4Gb) DEFAULT_DDR3_4096M \
 	DDR2_Default(512Mb) DEFAULT_DDR2_512M \
+	DDR2_1066_W9751G6KB(512Mb) W9751G6KB_A02_DDR2_1066_512M \
 	DDR2_Default(1Gb) DEFAULT_DDR2_1024M \
-	DDR2_W971GG6KB(1Gb) W971GG6KB_DDR2_1024M"
+	DDR2_W971GG6KB25(1Gb) W971GG6KB25_DDR2_800_1024M \
+	DDR2_1066_W971GG6KB18(1Gb) W971GG6KB18_DDR2_1066_1024M"
 
 if [ "$DEFAULT_DDR3_1024M" = "y" ]; then
 define_string DDR_CHIP DEFAULT_DDR3_1024M
@@ -1371,8 +1386,14 @@ fi
 if [ "$DEFAULT_DDR2_512M" = "y" ]; then
 define_string DDR_CHIP DEFAULT_DDR2_512M
 fi
-if [ "$W971GG6KB_DDR2_1024M" = "y" ]; then
-define_string DDR_CHIP W971GG6KB_DDR2_1024M
+if [ "$W9751G6KB_A02_DDR2_1066_512M" = "y" ]; then
+define_string DDR_CHIP W9751G6KB_A02_DDR2_1066_512M
+fi
+if [ "$W971GG6KB25_DDR2_800_1024M" = "y" ]; then
+define_string DDR_CHIP W971GG6KB25_DDR2_800_1024M
+fi
+if [ "$W971GG6KB18_DDR2_1066_1024M" = "y" ]; then
+define_string DDR_CHIP W971GG6KB18_DDR2_1066_1024M
 fi
 if [ "$DEFAULT_DDR2_1024M" = "y" ]; then
 define_string DDR_CHIP DEFAULT_DDR2_1024M
@@ -1426,11 +1447,12 @@ choice 'DRAM Component' "64Mb ON_BOARD_64M_DRAM_COMPONENT \
                       " 128Mb
 else
 if [ "$ON_BOARD_DDR1" = "y" ]; then
-choice 'DDR Component' "128Mb ON_BOARD_128M_DRAM_COMPONENT \
+choice 'DDR Component' "64Mb ON_BOARD_64M_DRAM_COMPONENT \
+                                                                                                128Mb ON_BOARD_128M_DRAM_COMPONENT \
                                                                                                 256Mb ON_BOARD_256M_DRAM_COMPONENT \
                                                                                                 512Mb ON_BOARD_512M_DRAM_COMPONENT \
                                                                                                 1024Mb ON_BOARD_1024M_DRAM_COMPONENT
-                                                                                                " 256Mb
+                                                                                                " 64Mb
 else
 if [ "$ON_BOARD_DDR2" = "y" ]; then
 choice 'DDR Component' "256Mb ON_BOARD_256M_DRAM_COMPONENT \
@@ -1457,6 +1479,7 @@ comment ""
 #define_bool PDMA_NEW y
 #define_bool RX_SCATTER_GATTER_DMA y
 
+bool "Tiny Uboot" CONFIG_TINY_UBOOT
 
 #if [ "$ON_BOARD_SPI_FLASH_COMPONENT" == "y" ]; then
 choice 'Ram/Rom version' "RAM UBOOT_RAM \
@@ -1472,136 +1495,29 @@ choice 'Ram/Rom version' "RAM UBOOT_RAM \
 #
 # Enable(uncomment) following line to enable the adjustment for CPU PLL settings in menuconfig,
 # and then input:  make mrproper;make menuconfig
-#define_bool MT7628_CPU_PLL_PARAMETERS y
+define_bool MT7628_CPU_PLL_PARAMETERS y
 
 if [ "$MT7628_CPU_PLL_PARAMETERS" = "y" ]; then
-        if [ "$ON_BOARD_SDR" = "y" ]; then
-                choice 'CPU PLL source' "None CPLL_NONE \
-                                                                AUX0 CPLL_FROM_480MHZ   \
-                                                                AUX1 CPLL_FROM_XTAL \
-                                                                CONF CPLL_FROM_CONF
-                                                                " None
+		choice 'CPU clock source' "CPLL CPUCLK_FROM_CPLL   \
+                                   BPLL CPUCLK_FROM_BPLL \
+                                   XTAL CPUCLK_FROM_XTAL
+                                 " CPLL
+
+    hex "Fractional divider for clock source (0x1~0xA)" CPU_FRAC_DIV 0x1
         else
-                choice 'CPU PLL source' "None CPLL_NONE \
-                                                                AUX0 CPLL_FROM_480MHZ   \
-                                                                AUX1 CPLL_FROM_XTAL \
-                                                                CONF CPLL_FROM_CONF
-                                                                " CONF
-        fi
-
-        if [ "$CPLL_NONE" = "n" ]; then
-                define_hex CPU_PLL_PARAMETERS   1
-        fi
-
-        if [ "$CPLL_FROM_CONF" = "y" ]; then
-                choice '   PLL_MULTI_RATIO conf' "24 MT7628_PLL_MULTI_RATIO_24 \
-                                                25 MT7628_PLL_MULTI_RATIO_25 \
-                                                26 MT7628_PLL_MULTI_RATIO_26 \
-                                                27 MT7628_PLL_MULTI_RATIO_27 \
-                                                28 MT7628_PLL_MULTI_RATIO_28 \
-                                                29 MT7628_PLL_MULTI_RATIO_29 \
-                                                30 MT7628_PLL_MULTI_RATIO_30 \
-                                                " 29
-                if [ "$MT7628_PLL_MULTI_RATIO_24" = "y" ]; then
-                        define_hex      CPLL_MULTI_RATIO_CFG    0
-                fi
-                if [ "$MT7628_PLL_MULTI_RATIO_25" = "y" ]; then
-                        define_hex      CPLL_MULTI_RATIO_CFG    1
-                fi
-                if [ "$MT7628_PLL_MULTI_RATIO_26" = "y" ]; then
-                        define_hex      CPLL_MULTI_RATIO_CFG    2
-                fi
-                if [ "$MT7628_PLL_MULTI_RATIO_27" = "y" ]; then
-                        define_hex      CPLL_MULTI_RATIO_CFG    3
-                fi
-                if [ "$MT7628_PLL_MULTI_RATIO_28" = "y" ]; then
-                        define_hex      CPLL_MULTI_RATIO_CFG    4
-                fi
-                if [ "$MT7628_PLL_MULTI_RATIO_29" = "y" ]; then
-                        define_hex      CPLL_MULTI_RATIO_CFG    5
-                fi
-                if [ "$MT7628_PLL_MULTI_RATIO_30" = "y" ]; then
-                        define_hex      CPLL_MULTI_RATIO_CFG    6
-                fi
-                choice '    PLL_DIV_RATIO conf' "2 MT7628_PLL_DIV_RATIO_2 \
-                                              3 MT7628_PLL_DIV_RATIO_3 \
-                                              4 MT7628_PLL_DIV_RATIO_4 \
-                                             " 2
-                if [ "$MT7628_PLL_DIV_RATIO_2" = "y" ]; then
-                        define_hex      CPLL_DIV_RATIO_CFG      0
-                fi
-                if [ "$MT7628_PLL_DIV_RATIO_3" = "y" ]; then
-                        define_hex      CPLL_DIV_RATIO_CFG      1
-                fi
-                if [ "$MT7628_PLL_DIV_RATIO_4" = "y" ]; then
-                        define_hex      CPLL_DIV_RATIO_CFG      2
-                fi
-
-                #hex "    SSC conf (CPLL_CFG0[4:9])"            CPLL_SSC_CFG                    0x7
-                define_hex      CPLL_SSC_CFG    0x7
-        fi
-else
-        #
-        # Force MT7628 CPU PLL :   SDR: 600MHZ,  DDR1/2: 580Mhz
-        #
-        if [ "$ON_BOARD_SDR" = "y" ]; then
-                define_bool     CPLL_NONE               y
-        else
-                define_bool     CPLL_FROM_CONF          y
-                define_bool     CPLL_NONE               n
-                define_hex      CPU_PLL_PARAMETERS      1
-                define_hex      CPLL_MULTI_RATIO_CFG    5
-                define_hex      CPLL_DIV_RATIO_CFG      0
-                define_hex      CPLL_SSC_CFG            0x7
-        fi
+	define_bool     CPUCLK_FROM_CPLL               y
+    define_hex		CPU_FRAC_DIV					0x1
 fi
 
 bool "Dual Image" DUAL_IMAGE_SUPPORT
+bool "ETH One Port Only" ETH_ONE_PORT_ONLY
 
+if [ "$ETH_ONE_PORT_ONLY" = "n" ]; then
 bool "Partition LAN/WAN" LAN_WAN_PARTITION
 if [ "$LAN_WAN_PARTITION" = "y" ]; then
  choice 'LAN/WAN Board Layout' "W/LLLL RALINK_DEMO_BOARD_PVLAN \
                                 LLLL/W RALINK_EV_BOARD_PVLAN
                                "
-fi
-
-if [ "$ON_BOARD_NAND_FLASH_COMPONENT" = "y" ]; then
-bool "Static DRAM Parameter" DRAM_PARAMETERS
-if [ "$DRAM_PARAMETERS" = "y" ]; then
-if [ "$ON_BOARD_SDR" = "y" ]; then
-hex " SDRAM_CFG0"               DRAM_CFG0       12A263A3
-hex " SDRAM_CFG1"               DRAM_CFG1       F80108E8
-else
-hex " SYSCFG1 SoC ODT(hex)"                             SYSCFG1_ODT                     260
-if [ "$ON_BOARD_DDR1" = "y" ]; then
-hex " DDR_CFG0"                         DRAM_CFG0           34A1EB94
-hex " DDR_CFG1"                         DRAM_CFG1           202A2324
-else
-hex " DDR_CFG0"                                                 DRAM_CFG0                       249AA2E5
-hex " DDR_CFG1"                                                 DRAM_CFG1                       22322323
-fi
-hex " DDR_CFG2 CAS Latency"                             DDR_CFG2_CAS            4
-hex " DDR_CFG3 DRAM ODT"                                DDRCFG3_ODT                     0
-hex " DDR_CFG3 Drive Strength"                  DDR_CFG3_DS                     1
-hex " DDR_CFG10 "                                               DDR_CFG10_SETTING       48484848
-bool " DDR_CFG11 DLL Enable Fixed Fine-grain Delay"                     DDR_CFG11_FFD_ENABLE            n
-if [ "$DDR_CFG11_FFD_ENABLE" = "y" ]; then
-define_hex DDR_CFG11_FFD_EN  1
-else
-define_hex DDR_CFG11_FFD_EN  0
-fi
-bool " DDR_CFG11 DLL Enable Fixed Coarse-grain Delay"           DDR_CFG11_FCD_ENABLE            n
-if [ "$DDR_CFG11_FCD_ENABLE" = "y" ]; then
-define_hex DDR_CFG11_FCD_EN  1
-else
-define_hex DDR_CFG11_FCD_EN  0
-fi
-hex " DDR_CFG11 DLL Fixed Fine-grain Delay"                     DDR_CFG11_FFD   0
-hex " DDR_CFG11 DLL Fixed Coarse-grain Delay"           DDR_CFG11_FCD   0
-hex     " DDR ODT Source"                       DDR_ODT_SRC                     d
-hex " DDR ODT Off Delay"                DDR_ODT_OFF_DLY         2
-hex " DDR ODT On Delay"                 DDR_ODT_ON_DLY          2
-fi
 fi
 fi
 

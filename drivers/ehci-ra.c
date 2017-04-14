@@ -63,7 +63,8 @@ static int rt_set_host(void)
  */
 int ehci_hcd_init(void)
 {
-#if defined(RT3352_ASIC_BOARD) || defined(RT3883_ASIC_BOARD) || defined(RT5350_ASIC_BOARD)
+#if defined(RT3352_ASIC_BOARD) || defined(RT3883_ASIC_BOARD) || defined(RT5350_ASIC_BOARD) || defined(MT7620_ASIC_BOARD)|| defined(MT7628_ASIC_BOARD)
+	printf("*********ehci_hcd_init**********\n");
 	leave_power_saving();
 	mdelay(100);
 

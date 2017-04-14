@@ -67,7 +67,7 @@ do {	\
 #define OOB_AVAI_PER_SECTOR (8)
 
 #ifndef PART_SIZE_BMTPOOL
-#define BMT_POOL_SIZE       (80)
+#define BMT_POOL_SIZE       (8)
 #else
 #define BMT_POOL_SIZE (PART_SIZE_BMTPOOL)
 #endif

@@ -109,10 +109,13 @@ static int g_MSDC_id = TEST_HOST_ID;
 //static unsigned int clkfreq[]  = { MSDC_MAX_SCLK / 8, MSDC_MAX_SCLK / 4, MSDC_MAX_SCLK / 2, MSDC_MAX_SCLK };
 //static unsigned int clkfreq[]  = { MSDC_MAX_SCLK, MSDC_MAX_SCLK / 2};
 static unsigned int clkfreq[]  = { MSDC_MAX_SCLK };
-//static unsigned int buswidth[] = { HOST_BUS_WIDTH_8, HOST_BUS_WIDTH_4, HOST_BUS_WIDTH_1};
-static unsigned int buswidth[] = { HOST_BUS_WIDTH_4 };
-//static unsigned int burstsz[] = { MSDC_BRUST_64B, MSDC_BRUST_32B, MSDC_BRUST_16B, MSDC_BRUST_8B };
-static unsigned int burstsz[] = { MSDC_BRUST_64B };
+static unsigned int buswidth[] = { 
+#if defined (EMMC_8BIT)
+					HOST_BUS_WIDTH_8, 
+#endif
+					HOST_BUS_WIDTH_4, 
+					HOST_BUS_WIDTH_1};
+static unsigned int burstsz[] = { MSDC_BRUST_64B, MSDC_BRUST_32B, MSDC_BRUST_16B, MSDC_BRUST_8B };
 #if defined(MSDC_INTSRAM)
 __attribute__ ((unused, __section__ ("INTERNAL_SRAM"))) static unsigned char buf[MMC_TST_SIZE * 2];
 //static unsigned char buf[MMC_TST_SIZE * 2];
@@ -1859,11 +1862,20 @@ exit:
  ******************************************************************************/
 int ralink_msdc_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
-    MSDC_CLR_BIT32(RALINK_SYSCTL_BASE+0x60, 0x1 << 19);
 #if defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD)
+    MSDC_CLR_BIT32(RALINK_SYSCTL_BASE+0x60, 0x1 << 19);
     MSDC_SET_BIT32(RALINK_SYSCTL_BASE+0x60, 0x1 << 18);
-#elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) || defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
+#elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD)
+    MSDC_CLR_BIT32(RALINK_SYSCTL_BASE+0x60, 0x1 << 19);
     MSDC_CLR_BIT32(RALINK_SYSCTL_BASE+0x60, 0x1 << 18);
+#elif defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
+    MSDC_SET_BIT32(0xb000003c, 0x1e << 16); // TODO: maybe omitted when RAether already toggle AGPIO_CFG
+    MSDC_CLR_BIT32(RALINK_SYSCTL_BASE+0x60, 0x3 << 10);
+#if defined (EMMC_8BIT)
+    MSDC_SET_BIT32(RALINK_SYSCTL_BASE+0x60, 0x3 << 30);
+    MSDC_SET_BIT32(RALINK_SYSCTL_BASE+0x60, 0x3 << 28);
+    MSDC_SET_BIT32(RALINK_SYSCTL_BASE+0x60, 0x3 << 26);
+#endif
 #endif
 
 	if (!strncmp(argv[1], "register", 9)) {

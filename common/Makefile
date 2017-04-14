@@ -41,9 +41,14 @@ ifeq ($(RALINK_UPGRADE_BY_SERIAL),ON)
 COBJS += cmd_load.o
 endif
 
-ifdef RALINK_USB
+ifeq ($(RALINK_USB),ON)
 COBJS += usb.o usb_storage.o cmd_usb.o cmd_fat.o
 endif
+
+ifeq ($(MTK_USB),ON)
+COBJS += usb.o usb_storage.o cmd_usb.o cmd_fat.o
+endif
+
 
 OBJS	= $(AOBJS) $(COBJS)
 

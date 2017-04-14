@@ -197,8 +197,8 @@ _start:
 	 */
 	.align 4
 reset:
-	jal   __reset_vector
-        nop
+    b	__reset_vector
+	nop
 
 /**************************************************************************************
  Register use while executing in this file: ("GLOBAL" denotes a common value.)
@@ -295,6 +295,18 @@ check_nmi: # Verify we are here due to a reset (and not NMI.)
 
 	set_tag 0x01
 
+#if 0	// set GPIO19(PERST_N) to output mode and pull low
+	li	t0, 0xbe000600
+	lw	t1, 0(t0)
+	li	t2, 1<<19
+	or	t1, t1, t2
+	sw	t1, 0(t0)
+	li	t0, 0xbe000620
+	lw	t1, 0(t0)
+	li	t2, ~(1<<19)
+	and	t1, t1, t2
+	sw	t1, 0(t0)
+#endif
     mfc0    r4_temp_data, $12                   # Read CP0 Status
     srl     r4_temp_data, 19                    # Shift [NMI] into LSBs.
     andi    r4_temp_data, r4_temp_data, 1       # Inspect CP0 Config[AT]
@@ -368,7 +380,7 @@ init_core_resources:    # We are a vpe0.
     bal     join_domain # Join the coherent domain. (OK to use D$ on return.)
     nop
 
-#ifdef RALINK_DUAL_CORE_FUN
+#ifdef RALINK_DUAL_VPE_FUN
     bal     init_vpe1   # Set up MT ASE vpe1 to execute this boot code also.
     nop
 #endif
@@ -400,11 +412,7 @@ notmtcapable:
 	 * Only Core0 carries on from here
 	 * Everybody else waits...
 	 */
-#ifdef RALINK_DUAL_CORE_FUN
 	beqz	r23_cpu_num,finish_initialisation
-#else
-	j finish_initialisation
-#endif
 	nop
 
 othercores:
@@ -481,8 +489,9 @@ finish_initialisation:
 	/* Set up temporary stack */
 	li	t0, CONFIG_SYS_SDRAM_BASE + CONFIG_SYS_INIT_SP_OFFSET
 	la	sp, 0(t0)
-	set_tag 0x06	
-	la	t9, board_init_f
+	set_tag 0x06
+	lui	t9, %hi(board_init_f)
+	addiu t9, %lo(board_init_f)
 	jr	t9
 	nop
 
@@ -548,7 +557,8 @@ set_gpr_boot_values:
     mfc0    r4_temp_data, $15, 1                # Read CP0 EBase
 	ext	    r23_cpu_num, r4_temp_data, 0, 4     # Extract CPUNum
     li      r24_malta_word, MALTA_DISP_ADDR     # Need for reporting failed assertions.
-    la      r28_global_addr, _gp                # All vpe share globals.
+    lui     r28_global_addr, %hi(_gp)                # All vpe share globals.
+	addiu	r28_global_addr, %lo(_gp)
     li      r29_stack_addr, STACK_BASE_ADDR     # Each vpe gets it's own stack.
     ins     r29_stack_addr, r23_cpu_num, STACK_SIZE_LOG2, 3
 
@@ -601,7 +611,7 @@ is_cps:
 
 	//MTK: access 1fbf8008 will cause excption??
     # Verify that we can find the GCRs.
-	la	    r5_temp_addr, GCR_CONFIG           # KSEG1(GCRBASE)
+	li	    r5_temp_addr, GCR_CONFIG           # KSEG1(GCRBASE)
 	lw	    r4_temp_data, 0x0008(r5_temp_addr) # GCR_BASE
 	ins     r5_temp_addr, $0, 29, 3            # Convert KSEG1 to physical address.
 	ins	    r4_temp_data, $0, 0, 15            # Isolate physical base address of GCR.
@@ -615,12 +625,11 @@ gcr_found:
     lw      r16_core_num, 0x2028(r22_gcr_addr) # Load GCR_CL_ID
     lw      r4_temp_data, 0(r22_gcr_addr)      # Load GCR_CONFIG
 #ifdef RALINK_DUAL_CORE_FUN
-    ext	    r19_more_cores, r4_temp_data, 0, 8 # Extract PCORES (Not used by all vpe.)
+     li     r5_temp_addr, RALINK_SYSCTL_BASE
+     lw     r4_temp_data, 0x000c(r5_temp_addr)  #CHIP_REV_ID
+     ext    r19_more_cores, r4_temp_data, 17, 1
 #else
-     //li     r5_temp_addr, RALINK_SYSCTL_BASE
-     //lw     r4_temp_data, 0x000c(r5_temp_addr)  #CHIP_REV_ID
-     //ext    r19_more_cores, r4_temp_data, 17, 1
-       li     r19_more_cores, 0
+     li     r19_more_cores, 0
 #endif
 
 done_init_gpr:
@@ -776,8 +785,8 @@ init_gic:
     beqz    r3_is_cps, done_gic            # Skip if non-CPS.
     nop
 
-    la      r5_temp_addr, GCR_GIC_STATUS        # Read GCR_GIC_STATUS
-    lw      r4_temp_data, 0(r5_temp_addr)
+    li     r5_temp_addr, GCR_GIC_STATUS        # Read GCR_GIC_STATUS
+	lw      r4_temp_data, 0(r5_temp_addr)
     ext     r4_temp_data, r4_temp_data, 0, 1    # Isolate  GCR_GIC_STATUS[GIC_EX].
     beqz    r4_temp_data, done_gic              # If no gic then skip.
     nop
@@ -936,10 +945,24 @@ init_mc:
 #define RALINK_RSTCTRL_REG     		(RALINK_SYSCTL_BASE+0x34)
 
 
-	//increase SPI clock ASAP
-	la	t0, RALINK_SPI_BASE + 0x3c
-	sw	zero, 0(t0)
-	
+	//set SPI clock to system bus /(5+2)
+	li	t0, RALINK_SPI_BASE + 0x3c
+	//sw	zero, 0(t0)
+	li	t1, ~0x0FFF
+	lw	t2, 0(t0)
+	and	t2, t2, t1
+	ori	t2, t2, 0x5
+	sw	t2, 0(t0)
+
+	/* change CPU ratio from 1/A to 1/1 */
+	li	t0, RALINK_DYN_CFG0_REG
+	li	t1, ~(0x0F<<8)
+	lw	t2, 0(t0)
+	and	t2, t2, t1
+	li	t1, 1<<8
+	or  t2, t2, t1
+	sw	t2, 0(t0)
+
 	/* enter accessible PSE SRAM */
 
 	/* RESET PSE SRAM */
@@ -963,7 +986,7 @@ DLY:
 #ifndef BYPASS_MTK_DDR_CAL
 #ifdef USE_PCIE_SRAM
 	/* enable accessible PCIe SRAM */
-	la		t0, RALINK_RSTCTRL_REG
+	li		t0, RALINK_RSTCTRL_REG
 	li		t1, 0x7<<24
 	sw		t1, 0(t0)
 	li		t0, RALINK_CLKCFG0_REG
@@ -971,7 +994,7 @@ DLY:
 	li		t2, 1<<17
 	or		t1, t1, t2
 	sw		t1, 0(t0)
-	la		t0, RALINK_RSTCTRL_REG
+	li		t0, RALINK_RSTCTRL_REG
 	sw		zero, 0(t0)	
 	li		t0, 0xBE1400B0
 	ori		t1, t3, 1
@@ -979,13 +1002,14 @@ DLY:
 #endif	
 	set_tag 0xC
 	/* move code to SRAM */
-	la		t0, 0xBE00001C
+	li		t0, 0xBE00001C
 	lw		t1, 0(t0)
 	//ori		t1, t1, 0x1
 	li		t1, 0x0
 	sw		t1, 0(t0)
 
-	la		t0, uboot_end_data
+	lui		t0, %hi(uboot_end_data)
+	addiu	t0, t0, %lo(uboot_end_data)
 	li		t1, 0xBE108800
 	li		t3, (24*1024-256-0x800)
 	
@@ -1025,7 +1049,6 @@ DLY:
 	sw		$29, 80(t0)
 	sw		$30, 84(t0)
 	sw		$31, 88(t0)
-
 
 	li		t9 , 0xBE108800
 	jalr    t9
@@ -1068,7 +1091,7 @@ DLY:
 	and		t1, t1, t2
 	sw		t1, 0(t0)
 	
-	la		t0, RALINK_RSTCTRL_REG
+	li		t0, RALINK_RSTCTRL_REG
 	li		t1, 0x7<<24
 	sw		t1, 0(t0)
 	
@@ -1078,28 +1101,30 @@ DLY:
 	and		t1, t1, t2
 	sw		t1, 0(t0)
 	
-	la		t0, RALINK_RSTCTRL_REG
+	li		t0, RALINK_RSTCTRL_REG
 	sw		zero, 0(t0)
 #endif	
 #else
-	la      sp, FE_SRAM_STACK
+	li      sp, FE_SRAM_STACK
 	sw		r31_return_addr, 0(sp)
 	addiu	sp, sp ,4
 #if !defined (FPGA_BOARD)	
 	/* change mpll source from CR setting */
-	la		t0, 0xBE00002C
+	li		t0, 0xBE00002C
 	lw		t1, 0(t0)
 	li		t2, 1<<23
 	or		t1, t1, t2
 	sw		t1, 0(t0)
 	set_tag 0xC
-	la		t9, mempll_init
+	lui		t9, %hi(mempll_init)
+	addiu	t9, t9, %lo(mempll_init)
 	jalr    t9
 	nop
 MEMPLL_INIT_DONE:	
 #endif
 	set_tag 0xD
-	la		t9, ddr_initialize
+	lui		t9, %hi(ddr_initialize)
+	addiu	t9, t9, %lo(ddt_initialize)
 	jalr    t9
 	nop
 	set_tag 0xE
@@ -1129,11 +1154,13 @@ DDR_INIT_DONE:
 	sw	t1, 0(t0)
 #endif			
 #endif // UBOOT_ROM //
-#ifdef RALINK_DUAL_CORE_FUN
 COPY_WAITCODE:
-	la	t0, waitcode_start
-	la	t1, waitcode_end
-	la	t2, WAITCODE_IN_RAM
+	lui	t0, %hi(waitcode_start)
+	addiu	t0, t0, %lo(waitcode_start)
+	lui	t1, %hi(waitcode_end)
+	addiu	t1, t1, %lo(waitcode_end)
+	lui	t2, %hi(WAITCODE_IN_RAM)
+	addiu	t2, t2, %lo(WAITCODE_IN_RAM)
 1:
 	lw	t3, 0(t0)
 	sw	t3, 0(t2)
@@ -1141,7 +1168,6 @@ COPY_WAITCODE:
 	addiu	t2, t2, 4
 	bne		t0, t1, 1b
 	nop
-#endif	
 	jr   r31_return_addr
 	nop
 /**************************************************************************************
@@ -1349,7 +1375,7 @@ init_cm:
 	nop
 
 	# Allow each core access to the CM registers (they should only access their local registers.)
-    la      r5_temp_addr, GCR_CONFIG            # KSEG1(GCRBASE)
+    li     r5_temp_addr, GCR_CONFIG            # KSEG1(GCRBASE)
 	li	    r4_temp_data, 2                     # Start building mask for cores in this cps.
     sll     r4_temp_data, r4_temp_data, r19_more_cores
     addiu   r4_temp_data, -1                    # Complete mask.
@@ -1769,7 +1795,8 @@ nextvpe:
 
 	# vpe1 of each core can execute cached as it's L1 I$ has already been initialized.
     # and the L2$ has been initialized or "disabled" via CCA override.
-	la	r5_temp_addr, __reset_vector
+	lui	r5_temp_addr, %hi(__reset_vector)
+	addiu	r5_temp_addr, %lo(__reset_vector)
 #if !defined (MTK_NAND)
 	ins     r5_temp_addr, $0, 29, 1 # Convert to cached kseg0 address in case we linked to kseg1.
 #endif	
@@ -1841,7 +1868,8 @@ relocate_code:
 	move	sp, a0			# set new stack pointer
 
 	li	t0, CONFIG_SYS_MONITOR_BASE
-	la	t3, in_ram
+	lui	t3, %hi(in_ram)
+	addiu	t3, t3, %lo(in_ram)
 	lw	t2, -12(t3)		# t2 <-- uboot_end_data
 	move	t1, a2
 	move	s2, a2			# s2 <-- destination address
@@ -1934,9 +1962,11 @@ in_ram:
 
 	set_tag	0x9
 	move	a0, s0			# a0 <-- gd
-	la	t9, board_init_r
+	lui	t9, %hi(board_init_r)
+	addiu	t9, t9, %lo(board_init_r)
 #if 1	/* VIOSOFT: FIXME */
-	la	t8, _start
+	lui	t8, %hi(_start)
+	addiu	t8, t8, %lo(_start)
 	sub	t9, t8
 	add	t9, s2, t9
 #endif	/* VIOSOFT */

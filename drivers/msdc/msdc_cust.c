@@ -47,8 +47,8 @@ struct msdc_cust msdc_cap = {
     4,                  /* clock pad driving on 1.8V     */
     4,                  /* command pad driving on 1.8V   */
     4,                  /* data pad driving on 1.8V      */
-#if !MSDC_USE_SDXC_FPGA /* 8-bit on-board eMMC used      */
-    4,                  /* data pins                     */
+#if defined (EMMC_8BIT)
+    8,                  /* data pins                     */
 #else
     4,                  /* data pins                     */
 #endif

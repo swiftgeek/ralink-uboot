@@ -438,6 +438,8 @@ int rt2880_i2c_toolkit(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	/* configure i2c to normal mode */
 #if defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD)
 	RT2880_REG(RT2880_GPIOMODE_REG) &= ~(1 << 2);
+#elif defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
+	RT2880_REG(RT2880_GPIOMODE_REG) &= ~(1 << 16);
 #else
 	RT2880_REG(RT2880_GPIOMODE_REG) &= ~1;
 #endif

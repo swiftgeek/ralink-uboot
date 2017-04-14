@@ -229,6 +229,7 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	}
 #endif
 
+	do {	
 #if defined (CFG_ENV_IS_IN_NAND)
 	if (addr >= CFG_FLASH_BASE)
 		ranand_read(&header, (char *)(addr - CFG_FLASH_BASE), sizeof(image_header_t));
@@ -256,10 +257,23 @@ int do_bootm (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 #endif	/* __I386__ */
 	    {
 		printf ("Bad Magic Number,%08X \n",ntohl(hdr->ih_magic));
+#if defined (CFG_ENV_IS_IN_NAND)
+			addr += CFG_BLOCKSIZE;
+			if ((addr-CFG_FLASH_BASE) < 0x2000000) /* Suppose minimum NAND flash size 32MB */
+			{	
+				printf("Search header in next block address %x\n",addr-CFG_FLASH_BASE); 
+				continue;
+			}
+			else
+#endif				
+			{	
 		SHOW_BOOT_PROGRESS (-1);
 		return 1;
 	    }
 	}
+	}
+	break;
+	}while (1);
 	SHOW_BOOT_PROGRESS (2);
 
 	data = (ulong)&header;

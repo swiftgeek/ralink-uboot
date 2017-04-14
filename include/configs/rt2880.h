@@ -239,6 +239,7 @@ extern unsigned int  CFG_BLOCKSIZE;
       defined (RT5350_FPGA_BOARD) || defined (RT5350_ASIC_BOARD) || \
       defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) || \
       defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD) || \
+      defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) || \
       defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
 #define PHYS_FLASH_START	0xBC000000 /* Flash Bank #2 */
 #define PHYS_FLASH_1		0xBC000000 /* Flash Bank #1 */
@@ -411,23 +412,40 @@ extern unsigned int  CFG_BLOCKSIZE;
 #define RT2880_RSTSTAT_REG                      (RT2880_SYS_CNTL_BASE+0x38)
 #define RT2880_GPIOMODE_REG                     (RT2880_SYS_CNTL_BASE+0x860)
 #else
+#define RT2880_CHIP_REV_ID_REG			(RT2880_SYS_CNTL_BASE+0x0c)
 #define RT2880_SYSCFG_REG			(RT2880_SYS_CNTL_BASE+0x10)
 #define RT2880_SYSCFG1_REG			(RT2880_SYS_CNTL_BASE+0x14)
 #define RT2880_CLKCFG1_REG			(RT2880_SYS_CNTL_BASE+0x30)
 #define RT2880_RSTCTRL_REG			(RT2880_SYS_CNTL_BASE+0x34)
 #define RT2880_RSTSTAT_REG			(RT2880_SYS_CNTL_BASE+0x38)
-#define RT2880_SYSCLKCFG_REG  		(RT2880_SYS_CNTL_BASE+0x3c)
+#define RT2880_SYSCLKCFG_REG			(RT2880_SYS_CNTL_BASE+0x3c)
+#if defined (MT7628_ASIC_BOARD)
+#define RT2880_AGPIOCFG_REG			(RT2880_SYS_CNTL_BASE+0x3c)
+#endif
 #define RT2880_GPIOMODE_REG			(RT2880_SYS_CNTL_BASE+0x60)
 #endif
 
 #define RT2880_PRGIO_ADDR       (RALINK_SYSCTL_BASE + 0x600) // Programmable I/O
+#if defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) || \
+    defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
+#define RT2880_REG_PIOINT       (RT2880_PRGIO_ADDR + 0x90)
+#define RT2880_REG_PIOEDGE      (RT2880_PRGIO_ADDR + 0xA0)
+#define RT2880_REG_PIORENA      (RT2880_PRGIO_ADDR + 0x50)
+#define RT2880_REG_PIOFENA      (RT2880_PRGIO_ADDR + 0x60)
+#define RT2880_REG_PIODATA      (RT2880_PRGIO_ADDR + 0x20)
+#define RT2880_REG_PIODIR       (RT2880_PRGIO_ADDR + 0x00)
+#define RT2880_REG_PIOSET       (RT2880_PRGIO_ADDR + 0x30)
+#define RT2880_REG_PIORESET     (RT2880_PRGIO_ADDR + 0x40)
+#else
 #define RT2880_REG_PIOINT       (RT2880_PRGIO_ADDR + 0)
 #define RT2880_REG_PIOEDGE      (RT2880_PRGIO_ADDR + 0x04)
 #define RT2880_REG_PIORENA      (RT2880_PRGIO_ADDR + 0x08)
 #define RT2880_REG_PIOFENA      (RT2880_PRGIO_ADDR + 0x0C)
 #define RT2880_REG_PIODATA      (RT2880_PRGIO_ADDR + 0x20)
 #define RT2880_REG_PIODIR       (RT2880_PRGIO_ADDR + 0x24)
-
+#define RT2880_REG_PIOSET       (RT2880_PRGIO_ADDR + 0x30)
+#define RT2880_REG_PIORESET     (RT2880_PRGIO_ADDR + 0x40)
+#endif
 #define RALINK_REG(x)		(*((volatile u32 *)(x)))	
 #if defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD) || \
     defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) || defined (MT7628_FPGA_BOARD) || defined (MT7628_ASIC_BOARD)
@@ -454,20 +472,34 @@ extern unsigned int  CFG_BLOCKSIZE;
 /*
 * for USB
 */
-#ifdef RALINK_USB
+#if defined (RALINK_USB) || defined (MTK_USB)
+#ifdef CONFIG_RALINK_MT7621
+#define CONFIG_USB_STORAGE    1
+#define CONFIG_DOS_PARTITION	1
+#define LITTLEENDIAN
+#define CONFIG_CRC32_VERIFY
+#define CONFIG_SYS_USB_XHCI_MAX_ROOT_PORTS      2
+#else
 #define CONFIG_USB_OHCI		1
 #define CONFIG_SYS_USB_OHCI_MAX_ROOT_PORTS	2
 #define CONFIG_SYS_USB_OHCI_REGS_BASE		0x101C1000
 #define CONFIG_SYS_USB_OHCI_SLOT_NAME		"rt3680"
 #define CONFIG_USB_EHCI		1
 #define CONFIG_USB_STORAGE    1
-#define CONFIG_DOS_PARTITION
+#define CONFIG_DOS_PARTITION	1
 #define LITTLEENDIAN
 #define CONFIG_CRC32_VERIFY
+#endif
 #endif /* RALINK_USB */
 
 #if defined (MT7621_ASIC_BOARD) || defined (MT7621_FPGA_BOARD)
 //#define USE_PIO_DBG		1
+#endif
+
+#if defined(MT7628_ASIC_BOARD)
+#define PHY_BASE                0xB0120000
+#define SIFSLV_FM_FEG_BASE      (PHY_BASE+0xf00)
+#define U2_PHY_BASE             (PHY_BASE+0x800)
 #endif
 
 #endif	/* __CONFIG_H */

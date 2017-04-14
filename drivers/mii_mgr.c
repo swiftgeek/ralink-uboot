@@ -186,7 +186,6 @@ u32 mii_mgr_write(u32 phy_addr, u32 phy_register, u32 write_data)
 		}
 	}
 }
-
 #elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) || defined (MT7620_ASIC_BOARD)
 u32 __mii_mgr_read(u32 phy_addr, u32 phy_register, u32 *read_data)
 {

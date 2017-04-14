@@ -374,6 +374,7 @@
 #define RALINK_GDMA_BASE                0xB0002800
 #define RALINK_AES_ENGING_BASE          0xB0004000
 #define RALINK_CRYPTO_ENGING_BASE       RALINK_AES_ENGING_BASE
+#define RALINK_RGCTRL_BASE				0xB0001000
 #define RALINK_FRAME_ENGINE_BASE        0xB0100000
 #define RALINK_ETH_SW_BASE              0xB0110000
 #define RALINK_USB_DEV_BASE             0x10120000
@@ -435,6 +436,7 @@
 //Clock Conf Register
 #define RALINK_UPHY1_CLK_EN     (1<<22)
 #define RALINK_UPHY0_CLK_EN     (1<<25)
+#define RALINK_PCIE_CLK_EN    	(1<<26)
 
 #elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) 
 
@@ -832,6 +834,11 @@
 #define RALINK_GPIOMODE_REG		0xBE000060
 #define RALINK_CUR_CLK_STS_REG		0xBE000044
 #define RALINK_DYN_CFG0_REG		0xBE000410
+#endif
+
+#if defined (MT7628_ASIC_BOARD) || defined (MT7628_FPGA_BOARD)
+#define RALINK_CLKCFG0_REG      0xB000002C
+#define RALINK_DYN_CFG0_REG		0xB0000440
 #endif
 
 #endif // __RALINK_MMAP__

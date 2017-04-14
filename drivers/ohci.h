@@ -449,7 +449,7 @@ struct ohci_device {
 /* hcd */
 /* endpoint */
 static int ep_link(ohci_t * ohci, ed_t * ed);
-int ep_unlink(ohci_t * ohci, ed_t * ed);
+static int ep_unlink(ohci_t * ohci, ed_t * ed);
 static ed_t * ep_add_ed(struct usb_device * usb_dev, unsigned long pipe,
 		int interval, int load);
 

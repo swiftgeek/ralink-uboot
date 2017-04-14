@@ -622,11 +622,11 @@ bmt_struct *init_bmt(struct nand_chip * chip, int size)
     } else
     {
         MSG(INIT, "Load bmt data fail, need re-construct!\n");
-#ifndef __UBOOT_NAND__            // BMT is not re-constructed in UBOOT.
+//#ifndef __UBOOT_NAND__            // BMT is not re-constructed in UBOOT.
         if (reconstruct_bmt(&bmt))
             return &bmt;
         else
-#endif
+//#endif
             return NULL;
     }
 }

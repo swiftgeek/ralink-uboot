@@ -67,6 +67,10 @@ OBJS	+= nand_flash.o
  endif
 endif
 
+ifeq ($(MTK_XHCI), ON)
+OBJS	+= usb/host/xhci.o usb/host/xhci-mem.o usb/host/xhci-ring.o usb/host/xhci-mtk.o usb/host/xhci-mtk-power.o usb/host/xhci-mtk-scheduler.o usb/host/mtk-phy.o usb/host/mtk-phy-ahb.o usb/host/mtk-phy-7621.o
+endif
+
 ifeq ($(RALINK_OHCI), ON)
 OBJS	+= ohci-hcd.o
 endif

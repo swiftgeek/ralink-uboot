@@ -108,9 +108,9 @@ long int initdram(int board_type)
 {
 	ulong size, max_size       = MAX_SDRAM_SIZE;
 	ulong our_address;
-  
+#ifndef CONFIG_MIPS16
 	asm volatile ("move %0, $25" : "=r" (our_address) :);
-
+#endif
 	/* Can't probe for RAM size unless we are running from Flash.
 	 */
 #if 0	 

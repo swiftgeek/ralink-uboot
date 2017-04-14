@@ -44,4 +44,29 @@
 #define Hit_Set_Virtual_SI	0x1e
 #define Hit_Set_Virtual_SD	0x1f
 
+/*
+ * Cache Operations available on all MIPS processors with R4000-style caches
+ */
+#define INDEX_INVALIDATE_I      0x00
+#define INDEX_WRITEBACK_INV_D   0x01
+#define INDEX_LOAD_TAG_I        0x04
+#define INDEX_LOAD_TAG_D        0x05
+#define INDEX_STORE_TAG_I       0x08
+#define INDEX_STORE_TAG_D       0x09
+#if defined(CONFIG_CPU_LOONGSON2)
+#define HIT_INVALIDATE_I        0x00
+#else
+#define HIT_INVALIDATE_I        0x10
+#endif
+#define HIT_INVALIDATE_D        0x11
+#define HIT_WRITEBACK_INV_D     0x15
+
+/*
+ * R4000-specific cacheops
+ */
+#define CREATE_DIRTY_EXCL_D     0x0d
+#define FILL                    0x14
+#define HIT_WRITEBACK_I         0x18
+#define HIT_WRITEBACK_D         0x19
+
 #endif	/* __ASM_MIPS_CACHEOPS_H */
