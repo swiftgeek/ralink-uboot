@@ -26,7 +26,10 @@ include $(TOPDIR)/config.mk
 LIB	= lib$(BOARD).a
 
 
-OBJS	= $(BOARD).o flash.o serial.o 
+OBJS	= $(BOARD).o serial.o 
+ifeq ($(CFG_ENV_IS), IN_FLASH)
+OBJS	+= flash.o 
+endif
 SOBJS	= $(BOARD)_init.o memsetup.o
 
 $(LIB):	.depend $(OBJS) $(SOBJS)

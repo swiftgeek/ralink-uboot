@@ -37,6 +37,7 @@ static env_t *flash_addr = (env_t *)(CFG_ENV_ADDR - CFG_FLASH_BASE);
 
 extern uchar default_environment[];
 extern int default_environment_size;
+extern int is_nand_page_2048;
 
 
 uchar env_get_char_spec (int index)

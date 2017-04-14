@@ -3,20 +3,23 @@
 #include <malloc.h>
 #include <configs/rt2880.h>
 #include "ralink_nand.h"
-
-
+		       
 #define ra_inl(addr)  (*(volatile u32 *)(addr))
 #define ra_outl(addr, value)  (*(volatile u32 *)(addr) = (value))
 #define ra_and(addr, value) ra_outl(addr, (ra_inl(addr) & (value)))
 #define ra_or(addr, value) ra_outl(addr, (ra_inl(addr) | (value)))
 
 #define ra_dbg(args...)
-/*#define ra_dbg(args...) do { if (1) printf(args); } while(0)*/
+//#define ra_dbg(args...) do { if (1) printf(args); } while(0)
 
 #define READ_STATUS_RETRY	1000
 #define CLEAR_INT_STATUS()	ra_outl(NFC_INT_ST, ra_inl(NFC_INT_ST))
 #define NFC_TRANS_DONE()	(ra_inl(NFC_INT_ST) & INT_ST_ND_DONE)
 
+int nand_addrlen = 3;
+int is_nand_page_2048 = 0;
+
+const unsigned int nand_size_map[2][3] = {{25, 30, 30}, {20, 27, 30}};
 
 static int nfc_wait_ready(int snooze_ms);
 int nfc_read_page(char *buf, int page);
@@ -157,13 +160,62 @@ static int nfc_device_ready(void)
 
 unsigned long ranand_init(void)
 {
+	int reg, chip_mode;
 #if defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD)
 	//set NAND_SPI_SHARE to 3b'100
 	ra_and(RALINK_SYSCTL_BASE+0x60, ~(0x7<<11));
 	ra_or(RALINK_SYSCTL_BASE+0x60, (0x4<<11));
 
 	//512 bytes per page
-	ra_and(RALINK_NAND_CTRL_BASE+0x2c, ~1);
+	ra_and(NFC_CONF1, ~1);
+#elif defined (RT6352_ASIC_BOARD) || defined (RT6352_FPGA_BOARD)
+	//set NAND_SD_SHARE to 2b'00
+	ra_and(RALINK_SYSCTL_BASE+0x60, ~(0x3<<18));
+	reg = ra_inl(RALINK_SYSCTL_BASE+0x10);
+	chip_mode = reg & 0xF;
+	
+	if((chip_mode==1)||(chip_mode==11)) {
+		printf("!!! nand page size = 2048, addr len=%d\n", ((chip_mode!=11) ? 4 : 5));
+		ra_or(NFC_CONF1, 1);
+		is_nand_page_2048 = 1;
+		nand_addrlen = ((chip_mode!=11) ? 4 : 5); 
+	}
+	else {
+		printf("!!! nand page size = 512, addr len=%d\n", (chip_mode!=10) ? 3 : 4);
+		ra_and(NFC_CONF1, ~1);
+		is_nand_page_2048 = 0;
+		nand_addrlen = ((chip_mode!=10) ? 3 : 4);
+	}
+	
+	//config ECC location
+	ra_and(NFC_CONF1, 0xfff000ff);
+	ra_or(NFC_CONF1, ((CONFIG_ECC_OFFSET + 2) << 16) +
+			((CONFIG_ECC_OFFSET + 1) << 12) +
+			(CONFIG_ECC_OFFSET << 8));
+	
+#elif defined (RT63365_ASIC_BOARD) || defined (RT63365_FPGA_BOARD)
+	//FIXME: config 512 or 2048-byte page according to HWCONF
+	reg = ra_inl(RALINK_SYSCTL_BASE+0x8c);
+	chip_mode = ((reg>>28) & 0x3)|(((reg>>22) & 0x3)<<2);
+	//if (ra_inl(RALINK_SYSCTL_BASE+0x8c) & (0x1 << 19)) {
+	if(chip_mode==1) {
+		printf("!!! nand 2048\n");
+		ra_or(NFC_CONF1, 1);
+		is_nand_page_2048 = 1;
+		nand_addrlen = 5;
+	}
+	else {
+		printf("!!! nand 512\n");
+		ra_and(NFC_CONF1, ~1);
+		is_nand_page_2048 = 0;
+		nand_addrlen = 3;
+	}
+
+	//config ECC location
+	ra_and(NFC_CONF1, 0xfff000ff);
+	ra_or(NFC_CONF1, ((CONFIG_ECC_OFFSET + 2) << 16) +
+			((CONFIG_ECC_OFFSET + 1) << 12) +
+			(CONFIG_ECC_OFFSET << 8));
 #endif
 
 	//maks sure gpio-0 is input
@@ -171,7 +223,6 @@ unsigned long ranand_init(void)
 
 	//set WP to high
 	ra_or(NFC_CTRL, 0x01);
-	udelay(100);
 
 	if (nfc_all_reset() != 0)
 		return -1;
@@ -223,6 +274,7 @@ static int _ra_nand_pull_data(char *buf, int len)
 				p = (__u32 *)q;
 			}
 #endif
+			retry = READ_STATUS_RETRY;
 		}
 		else if (int_st & INT_ST_ND_DONE) {
 			break;
@@ -256,7 +308,7 @@ static int _ra_nand_push_data(char *buf, int len)
 	unsigned int tx_data = 0;
 	int tx_size, iter = 0;
 
-	retry = 528;
+	retry = READ_STATUS_RETRY;
 	while (len > 0) {
 		int_st = ra_inl(NFC_INT_ST);
 		if (int_st & INT_ST_TX_BUF_RDY) {
@@ -279,6 +331,7 @@ static int _ra_nand_push_data(char *buf, int len)
 			ra_outl(NFC_INT_ST, INT_ST_TX_BUF_RDY);
 			ra_outl(NFC_DATA, tx_data);
 			len -= tx_size;
+			retry = READ_STATUS_RETRY;
 		}
 		else if (int_st & INT_ST_ND_DONE) {
 			break;
@@ -383,15 +436,21 @@ static int nfc_erase_block(int row_addr)
 
 }
 
-static inline int nfc_read_raw_data(int cmd1, int bus_addr, int conf, char *buf, int len)
+static inline int nfc_read_raw_data(int cmd1, int cmd2, int bus_addr, int bus_addr2, int conf, char *buf, int len)
 {
 	int ret;
 
-	ra_dbg("%s: cmd1 %x, bus_addr %x, conf %x, len %x\n", __func__,
-			cmd1, bus_addr, conf, len);
+	ra_dbg("%s: cmd1 %x, cmd2 %x, addr %x %x, conf %x, len %x\n", __func__,
+			cmd1, cmd2, bus_addr2, bus_addr, conf, len);
 	CLEAR_INT_STATUS();
-	ra_outl(NFC_CMD1, cmd1); 	
+	ra_outl(NFC_CMD1, cmd1);
+	ra_outl(NFC_CMD2, cmd2);
 	ra_outl(NFC_ADDR, bus_addr);
+#if defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) || \
+	defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) || \
+	defined (RT6352_FPGA_BOARD) || defined (RT6352_ASIC_BOARD)	
+	ra_outl(NFC_ADDR2, bus_addr2);
+#endif	
 	ra_outl(NFC_CONF, conf); 
 
 	ret = _ra_nand_pull_data(buf, len);
@@ -409,16 +468,21 @@ static inline int nfc_read_raw_data(int cmd1, int bus_addr, int conf, char *buf,
 	return 0;
 }
 
-static inline int nfc_write_raw_data(int cmd1, int cmd3, int bus_addr, int conf, char *buf, int len)
+static inline int nfc_write_raw_data(int cmd1, int cmd3, int bus_addr, int bus_addr2, int conf, char *buf, int len)
 {
 	int ret;
 
-	ra_dbg("%s: cmd1 %x, cmd3 %x, bus_addr %x, conf %x, len %x\n", __func__,
-			cmd1, cmd3, bus_addr, conf, len);
+	ra_dbg("%s: cmd1 %x, cmd3 %x, addr %x %x, conf %x, len %x\n", __func__,
+			cmd1, cmd3, bus_addr2, bus_addr, conf, len);
 	CLEAR_INT_STATUS();
-	ra_outl(NFC_CMD1, cmd1); 	
-	ra_outl(NFC_CMD3, cmd3); 	
+	ra_outl(NFC_CMD1, cmd1);
+	ra_outl(NFC_CMD3, cmd3);
 	ra_outl(NFC_ADDR, bus_addr);
+#if defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) || \
+	defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) || \
+	defined (RT6352_FPGA_BOARD) || defined (RT6352_ASIC_BOARD)	
+	ra_outl(NFC_ADDR2, bus_addr2);
+#endif	
 	ra_outl(NFC_CONF, conf); 
 
 	ret = _ra_nand_push_data(buf, len);
@@ -442,8 +506,8 @@ static inline int nfc_write_raw_data(int cmd1, int cmd3, int bus_addr, int conf,
  */
 int nfc_read_oob(int page, unsigned int offs, char *buf, int len)
 {
-	unsigned int cmd1 = 0, conf = 0;
-	unsigned int bus_addr = 0;
+	unsigned int cmd1 = 0, cmd2 = 0, conf = 0;
+	unsigned int bus_addr = 0, bus_addr2 = 0;
 	int status;
 
 #if 0
@@ -458,14 +522,22 @@ int nfc_read_oob(int page, unsigned int offs, char *buf, int len)
 
 	bus_addr = (page << (CFG_COLUMN_ADDR_CYCLE*8)) | (offs & ((1<<CFG_COLUMN_ADDR_CYCLE*8) - 1));
 
-	cmd1 = 0x50;
-	conf = 0x000141| ((CFG_ADDR_CYCLE)<<16) | ((len) << 20);
-/*        if (ecc_en)*/
-		conf |= (1<<3);
+	if (is_nand_page_2048) {
+		bus_addr += CFG_PAGESIZE;
+		bus_addr2 = page >> (CFG_COLUMN_ADDR_CYCLE*8);
+		cmd1 = 0x0;
+		cmd2 = 0x30;
+		conf = 0x000511| ((CFG_ADDR_CYCLE)<<16) | (len << 20); 
+	}
+	else {
+		cmd1 = 0x50;
+		conf = 0x000141| ((CFG_ADDR_CYCLE)<<16) | (len << 20);
+	}
+	conf |= (1<<3);
 
-	ra_dbg("%s: cmd1:%x,  bus_addr:%x, conf:%x, len:%x\n", __func__, cmd1, bus_addr, conf, len);
+	ra_dbg("%s: cmd1:%x, bus_addr:%x, conf:%x, len:%x\n", __func__, cmd1, bus_addr, conf, len);
 
-	status = nfc_read_raw_data(cmd1, bus_addr, conf, buf, len);
+	status = nfc_read_raw_data(cmd1, cmd2, bus_addr, bus_addr2, conf, buf, len);
 	if (status & NAND_STATUS_FAIL) {
 		printf("%s: fail \n", __func__);
 		return -1;
@@ -481,7 +553,7 @@ int nfc_read_oob(int page, unsigned int offs, char *buf, int len)
 int nfc_write_oob(int page, unsigned int offs, char *buf, int len)
 {
 	unsigned int cmd1 = 0, cmd3=0, conf = 0;
-	unsigned int bus_addr = 0;
+	unsigned int bus_addr = 0, bus_addr2 = 0;
 	int status;
 
 #if 0
@@ -494,15 +566,24 @@ int nfc_write_oob(int page, unsigned int offs, char *buf, int len)
 
 	bus_addr = (page << (CFG_COLUMN_ADDR_CYCLE*8)) | (offs & ((1<<CFG_COLUMN_ADDR_CYCLE*8) - 1));
 
-	cmd1 = 0x08050;
-	cmd3 = 0x10;
-	conf = 0x001223 | ((CFG_ADDR_CYCLE)<<16) | ((len) << 20);
+	if (is_nand_page_2048) {
+		cmd1 = 0x80;
+		cmd3 = 0x10;
+		bus_addr += CFG_PAGESIZE;
+		bus_addr2 = page >> (CFG_COLUMN_ADDR_CYCLE*8);
+		conf = 0x001123 | ((CFG_ADDR_CYCLE)<<16) | ((len) << 20);
+	}
+	else {
+		cmd1 = 0x08050;
+		cmd3 = 0x10;
+		conf = 0x001223 | ((CFG_ADDR_CYCLE)<<16) | ((len) << 20);
+	}
 
 	// set NFC
 	ra_dbg("%s: cmd1: %x, cmd3: %x bus_addr: %x, conf: %x, len:%x\n",
 			__func__, cmd1, cmd3, bus_addr, conf, len);
 
-	status = nfc_write_raw_data(cmd1, cmd3, bus_addr, conf, buf, len);
+	status = nfc_write_raw_data(cmd1, cmd3, bus_addr, bus_addr2, conf, buf, len);
 	if (status & NAND_STATUS_FAIL) {
 		printf("%s: fail \n", __func__);
 		return -1;
@@ -545,28 +626,94 @@ int nfc_ecc_verify(char *buf, int page, int mode)
 		return -2;
 
 ecc_check:
-	p += (1<<CONFIG_PAGE_SIZE_BIT);
-	ecc = ra_inl(NFC_ECC);
-	if (ecc == 0) //clean page.
-		return 0;
-	e = (char*)&ecc;
-	for (i=0; i<CONFIG_ECC_BYTES; i++) {
-		if ((char)*(p +i) != (char)0xff)
-			break;
-		if (i == CONFIG_ECC_BYTES - 1) {
-			//printf("skip ecc for empty flash\n");
+	p += CFG_PAGESIZE;
+	if (!is_nand_page_2048) {
+		ecc = ra_inl(NFC_ECC);
+		if (ecc == 0) //clean page.
 			return 0;
+		e = (char*)&ecc;
+		for (i=0; i<CONFIG_ECC_BYTES; i++) {
+			int eccpos = CONFIG_ECC_OFFSET + i;
+			if (*(p + eccpos) != (char)0xff)
+				break;
+			if (i == CONFIG_ECC_BYTES - 1) {
+				printf("skip ecc 0xff at page %x hwecc=%X\n", page,ecc);					
+				return 0;
+			}
+		}
+		
+		
+		for (i=0; i<CONFIG_ECC_BYTES; i++) {
+			int eccpos = CONFIG_ECC_OFFSET + i;
+			if (*(p + eccpos) != *(e + i)) {
+				printf("%s mode:%s, invalid ecc, page: %x read:%x %x %x, ecc:%x \n",
+						__func__, (mode == FL_READING)?"read":"write", page,
+						*(p+ CONFIG_ECC_OFFSET), *(p+ CONFIG_ECC_OFFSET+1), *(p+ CONFIG_ECC_OFFSET +2), ecc);
+				return -1;
+			}
 		}
 	}
-	for (i=0; i<CONFIG_ECC_BYTES; i++) {
-		int eccpos = CONFIG_ECC_OFFSET + i;
-		if (*(p + eccpos) != *(e + i)) {
-			printf("%s mode:%s, invalid ecc, page: %x read:%x %x %x, ecc:%x \n",
-					__func__, (mode == FL_READING)?"read":"write", page,
-					*(p+ CONFIG_ECC_OFFSET), *(p+ CONFIG_ECC_OFFSET+1), *(p+ CONFIG_ECC_OFFSET +2), ecc);
-			return -1;
+#if defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) || \
+    defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) || \
+    defined (RT6352_FPGA_BOARD) || defined (RT6352_ASIC_BOARD)	
+	else {
+		int ecc2, ecc3, ecc4, qsz;
+		char *e2, *e3, *e4;
+		ecc = ra_inl(NFC_ECC_P1);
+		ecc2 = ra_inl(NFC_ECC_P2);
+		ecc3 = ra_inl(NFC_ECC_P3);
+		ecc4 = ra_inl(NFC_ECC_P4);
+		e = (char*)&ecc;
+		e2 = (char*)&ecc2;
+		e3 = (char*)&ecc3;
+		e4 = (char*)&ecc4;
+		qsz = CFG_PAGE_OOBSIZE / 4;
+		if (ecc == 0 && ecc2 == 0 && ecc3 == 0 && ecc4 == 0)
+			return 0;
+		for (i=0; i<CONFIG_ECC_BYTES; i++) {
+			int eccpos = CONFIG_ECC_OFFSET + i;
+			if (*(p + eccpos) != (char)0xff)
+				break;
+			else if (*(p + eccpos + qsz) != (char)0xff)
+				break;
+			else if (*(p + eccpos + qsz*2) != (char)0xff)
+				break;
+			else if (*(p + eccpos + qsz*3) != (char)0xff)
+				break;
+			if (i == CONFIG_ECC_BYTES - 1) {
+				printf("skip ecc 0xff at page %x\n", page);
+				return 0;
+			}
+		}
+		for (i=0; i<CONFIG_ECC_BYTES; i++) {
+			int eccpos = CONFIG_ECC_OFFSET + i;
+			if (*(p + eccpos) != *(e + i)) {
+				printf("%s mode:%s, invalid ecc, page: %x read:%x %x %x, ecc:%x \n",
+						__func__, (mode == FL_READING)?"read":"write", page,
+						*(p+ CONFIG_ECC_OFFSET), *(p+ CONFIG_ECC_OFFSET+1), *(p+ CONFIG_ECC_OFFSET +2), ecc);
+				return -1;
+			}
+			if (*(p + eccpos + qsz) != *(e2 + i)) {
+				printf("%s mode:%s, invalid ecc2, page: %x read:%x %x %x, ecc2:%x \n",
+						__func__, (mode == FL_READING)?"read":"write", page,
+						*(p+CONFIG_ECC_OFFSET+qsz), *(p+ CONFIG_ECC_OFFSET+1+qsz), *(p+ CONFIG_ECC_OFFSET+2+qsz), ecc2);
+				return -1;
+			}
+			if (*(p + eccpos + qsz*2) != *(e3 + i)) {
+				printf("%s mode:%s, invalid ecc3, page: %x read:%x %x %x, ecc3:%x \n",
+						__func__, (mode == FL_READING)?"read":"write", page,
+						*(p+CONFIG_ECC_OFFSET+qsz*2), *(p+ CONFIG_ECC_OFFSET+1+qsz*2), *(p+ CONFIG_ECC_OFFSET+2+qsz*2), ecc3);
+				return -1;
+			}
+			if (*(p + eccpos + qsz*3) != *(e4 + i)) {
+				printf("%s mode:%s, invalid ecc4, page: %x read:%x %x %x, ecc4:%x \n",
+						__func__, (mode == FL_READING)?"read":"write", page,
+						*(p+CONFIG_ECC_OFFSET+qsz*3), *(p+ CONFIG_ECC_OFFSET+1+qsz*3), *(p+ CONFIG_ECC_OFFSET+2+qsz*3), ecc4);
+				return -1;
+			}
 		}
 	}
+#endif	
 	return 0;
 
 bad_block:
@@ -579,8 +726,8 @@ bad_block:
  */
 int nfc_read_page(char *buf, int page)
 {
-	unsigned int cmd1 = 0, conf = 0;
-	unsigned int bus_addr = 0;
+	unsigned int cmd1 = 0, cmd2 = 0, conf = 0;
+	unsigned int bus_addr = 0, bus_addr2 = 0;
 	int size, offs;
 	int status = 0;
 
@@ -596,19 +743,27 @@ int nfc_read_page(char *buf, int page)
 		len = size;
 #endif		
 		bus_addr = (page << (CFG_COLUMN_ADDR_CYCLE*8)) | (offs & ((1<<CFG_COLUMN_ADDR_CYCLE*8)-1)); 
-		if (offs & ~(CFG_PAGESIZE-1))
-			cmd1 = 0x50;
-		else if (offs & ~((1<<CFG_COLUMN_ADDR_CYCLE*8)-1))
-			cmd1 = 0x01;
-		else
-			cmd1 = 0;
+		if (is_nand_page_2048) {
+			bus_addr2 = page >> (CFG_COLUMN_ADDR_CYCLE*8);
+			cmd1 = 0x0;
+			cmd2 = 0x30;
+			conf = 0x000511| ((CFG_ADDR_CYCLE)<<16) | (len << 20); 
+		}
+		else {
+			if (offs & ~(CFG_PAGESIZE-1))
+				cmd1 = 0x50;
+			else if (offs & ~((1<<CFG_COLUMN_ADDR_CYCLE*8)-1))
+				cmd1 = 0x01;
+			else
+				cmd1 = 0;
 
-		conf = 0x000141| ((CFG_ADDR_CYCLE)<<16) | (len << 20); 
+			conf = 0x000141| ((CFG_ADDR_CYCLE)<<16) | (len << 20); 
+		}
 #if !defined (WORKAROUND_RX_BUF_OV)
 		conf |= (1<<3); 
 #endif
 
-		status = nfc_read_raw_data(cmd1, bus_addr, conf, buf+offs, len);
+		status = nfc_read_raw_data(cmd1, cmd2, bus_addr, bus_addr2, conf, buf+offs, len);
 		if (status & NAND_STATUS_FAIL) {
 			printf("%s: fail \n", __func__);
 			return -1;
@@ -635,27 +790,35 @@ int nfc_read_page(char *buf, int page)
 int nfc_write_page(char *buf, int page)
 {
 	unsigned int cmd1 = 0, cmd3, conf = 0;
-	unsigned int bus_addr = 0;
+	unsigned int bus_addr = 0, bus_addr2 = 0;
 	int size;
 	char status;
 
 	page = page & (CFG_CHIPSIZE-1); //chip boundary
 	size = CFG_PAGESIZE + CFG_PAGE_OOBSIZE; //add oobsize
 	bus_addr = (page << (CFG_COLUMN_ADDR_CYCLE*8)); //write_page always write from offset 0.
-	
-	cmd1 = 0x8000;
-	cmd3 = 0x10;
-	conf = 0x001223| ((CFG_ADDR_CYCLE)<<16) | (size << 20); 
+
+	if (is_nand_page_2048) {
+		bus_addr2 = page >> (CFG_COLUMN_ADDR_CYCLE*8);
+		cmd1 = 0x80;
+		cmd3 = 0x10;
+		conf = 0x001123| ((CFG_ADDR_CYCLE)<<16) | (size << 20); 
+	}
+	else {
+		cmd1 = 0x8000;
+		cmd3 = 0x10;
+		conf = 0x001223| ((CFG_ADDR_CYCLE)<<16) | (size << 20); 
+	}
 	conf |= (1<<3); //enable ecc
 
 #if 0 //winfred testing for bad block
-	if (bus_addr == 0x2c000)
+	if (bus_addr == 0x0)
 	{
 		printf("hmm... create a bad block %x\n", bus_addr);
-		*(buf+512+4) = 0x11;
+		*(buf+2048+5) = 0x11;
 	}
 #endif
-	status = nfc_write_raw_data(cmd1, cmd3, bus_addr, conf, buf, size);
+	status = nfc_write_raw_data(cmd1, cmd3, bus_addr, bus_addr2, conf, buf, size);
 	if (status & NAND_STATUS_FAIL) {
 		printf("%s: fail\n", __func__);
 		return -1;
@@ -695,7 +858,7 @@ int ranand_block_isbad(loff_t offs)
 int ranand_erase(unsigned int offs, int len)
 {
 	int page, status;
-	unsigned int blocksize = 1 << (CONFIG_PAGE_SIZE_BIT + CONFIG_NUMPAGE_PER_BLOCK_BIT);
+	unsigned int blocksize = CFG_BLOCKSIZE;
 	int ret = 0;
 
 	ra_dbg("%s: start:%x, len:%x \n", __func__, offs, len);
@@ -794,11 +957,11 @@ int ranand_write(char *buf, unsigned int to, int datalen)
 		int ret;
 		int offs;
 
-		ra_dbg("%s (%d): addr:%x, data:%p, datalen:%x\n", 
-				__func__, i++, (unsigned int)addr, buf, datalen);
-
 		page = (int)((addr & (CFG_CHIPSIZE-1)) >> CONFIG_PAGE_SIZE_BIT); //chip boundary
 		
+		ra_dbg("%s (%d): addr:%x, pg:%x, data:%p, datalen:%x\n", 
+				__func__, i++, (unsigned int)addr, page, buf, datalen);
+
 		/* select chip, and check if it is write protected */
 		if (nfc_check_wp()) {
 			printf("%s: nand is write protected\n", __func__);
@@ -869,7 +1032,7 @@ int ranand_read(char *buf, unsigned int from, int datalen)
 
 #ifdef CONFIG_BADBLOCK_CHECK
 		/* if we have a bad block, read from next block instead */
-		if (ranand_block_isbad(addr)) {
+		if (!is_nand_page_2048 && ranand_block_isbad(addr)) {
 			printf("%s: skip reading a bad block %x ->", __func__, (unsigned int)addr);
 			addr += (1 << (CONFIG_PAGE_SIZE_BIT + CONFIG_NUMPAGE_PER_BLOCK_BIT));;
 			printf(" %x\n", (unsigned int)addr);
@@ -901,6 +1064,17 @@ int ranand_read(char *buf, unsigned int from, int datalen)
 				printf(" read agian susccess \n");
 			}
 		}
+#ifdef CONFIG_BADBLOCK_CHECK
+		/* if is_nand_page_2048, check after reading page */
+		if (is_nand_page_2048) {
+			if (buffers[CFG_PAGESIZE+CONFIG_BAD_BLOCK_POS] != (char)0xff) {
+				printf("%s: skip reading a bad block %x ->", __func__, (unsigned int)addr);
+				addr += (1 << (CONFIG_PAGE_SIZE_BIT + CONFIG_NUMPAGE_PER_BLOCK_BIT));;
+				printf(" %x\n", (unsigned int)addr);
+				continue;
+			}
+		}
+#endif
 
 		// oob read
 #if 0
@@ -943,7 +1117,11 @@ int ranand_erase_write(char *buf, unsigned int offs, int count)
 {
 	int blocksize = CFG_BLOCKSIZE;
 	int blockmask = blocksize - 1;
-	int rc, i = 0;
+	int rc;
+#ifdef RALINK_NAND_UPGRADE_CHECK
+	int i = 0;
+	char *temp;
+#endif
 
 	printf("%s: offs:%x, count:%x\n", __func__, offs, count);
 
@@ -969,20 +1147,17 @@ int ranand_erase_write(char *buf, unsigned int offs, int count)
 			char *block;
 			unsigned int piece, blockaddr;
 			int piece_size;
-			char *temp;
 
 			block = malloc(blocksize);
-			if (!block)
+			if (!block) {
+				printf("%s: malloc block failed\n", __func__);
 				return -1;
-			temp = malloc(blocksize);
-			if (!temp)
-				return -1;
+			}
 
 			blockaddr = offs & ~blockmask;
 try_next_0:
 			if (ranand_read(block, blockaddr, blocksize) != blocksize) {
 				free(block);
-				free(temp);
 				return -2;
 			}
 
@@ -1002,21 +1177,24 @@ try_next_0:
 #endif
 			if (rc != 0) {
 				free(block);
-				free(temp);
 				return -3;
 			}
 			if (ranand_write(block, blockaddr, blocksize) != blocksize) {
 				free(block);
-				free(temp);
 				return -4;
 			}
 #ifdef RALINK_NAND_UPGRADE_CHECK
+			temp = malloc(blocksize);
+			if (!temp) {
+				printf("%s: malloc temp failed\n", __func__);
+				return -1;
+			}
+
 			if (ranand_read(temp, blockaddr, blocksize) != blocksize) {
 				free(block);
 				free(temp);
 				return -2;
 			}
-
 
 			if(memcmp(block, temp, blocksize) == 0)
 			{    
@@ -1029,9 +1207,8 @@ try_next_0:
 			        free(temp);
 			        return -2;
 			}
-#endif
-
                         free(temp);
+#endif
 			free(block);
 
 			buf += piece_size;
@@ -1040,11 +1217,7 @@ try_next_0:
 		}
 		else {
 			unsigned int aligned_size = blocksize;
-                        char *temp;
 
-			temp = malloc(blocksize);	
-			if (!temp)
-				return -1;
 try_next_1:
 			rc = ranand_erase(offs, aligned_size);
 #ifdef CONFIG_BADBLOCK_CHECK
@@ -1057,16 +1230,19 @@ try_next_1:
 			else
 #endif
 			if (rc != 0)
-			{    
-				free(temp);
+			{
 				return -1;
 			}
 			if (ranand_write(buf, offs, aligned_size) != aligned_size)
-			{	
-				free(temp);
+			{
 				return -1;
 			}
 #ifdef RALINK_NAND_UPGRADE_CHECK
+			temp = malloc(blocksize);
+			if (!temp) {
+				printf("%s: malloc temp failed\n", __func__);
+				return -1;
+			}
 			//udelay(10);
 			for( i=0; i< (aligned_size/blocksize); i++)
 			{
@@ -1086,8 +1262,8 @@ try_next_1:
 					return -2;
 				}
 			}
-#endif
 			free(temp);
+#endif
 			
 			printf(".");
 
@@ -1111,7 +1287,7 @@ int ralink_nand_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 	if (!strncmp(argv[1], "id", 3)) {
 		u8 id[4];
-		i = nfc_read_raw_data(0x90, 0, 0x410141, id, 4);
+		i = nfc_read_raw_data(0x90, 0, 0, 0, 0x410141, id, 4);
 		printf("flash id: %x %x %x %x\n", id[0], id[1], id[2], id[3]);
 	}
 	else if (!strncmp(argv[1], "read", 5)) {
@@ -1132,13 +1308,15 @@ int ralink_nand_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	}
 	else if (!strncmp(argv[1], "page", 5)) {
 		addr = (unsigned int)simple_strtoul(argv[2], NULL, 16); //page
-		i = nfc_read_page(p, addr);
-		printf("page 0x%x: ", addr);
-		for (i = 0; i < 512; i++)
-			printf("%02x ", p[i]);
-		printf("\noob: ");
-		for (i = 512; i < 528; i++)
-			printf("%02x ", p[i]);
+		p = (u8 *)malloc(CFG_PAGESIZE+CFG_PAGE_OOBSIZE);
+		nfc_read_page(p, addr);
+		printf("page 0x%x:\n", addr);
+		for (i = 0; i < CFG_PAGESIZE; i++)
+			printf("%02x%c", p[i], (i%32 == 31)? '\n':' ');
+		printf("oob:\n");
+		for (; i < CFG_PAGESIZE+CFG_PAGE_OOBSIZE; i++)
+			printf("%02x%c", p[i], (i%32 == 31)? '\n':' ');
+		free(p);
 		printf("\n");
 	}
 	else if (!strncmp(argv[1], "erase", 6)) {
@@ -1148,6 +1326,38 @@ int ralink_nand_command(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 			printf("erase failed\n");
 		else
 			printf("erase succeed\n");
+	}
+	else if (!strncmp(argv[1], "write", 6)) {
+		unsigned int o, l;
+		u8 t[3] = {0};
+
+		o = simple_strtoul(argv[2], NULL, 16);
+		l = strlen(argv[3]) / 2;
+		p = (u8 *)malloc(l);
+		if (!p) {
+			printf("malloc error\n");
+			return 0;
+		}
+		for (i = 0; i < l; i++) {
+			t[0] = argv[3][2*i];
+			t[1] = argv[3][2*i+1];
+			*(p + i) = simple_strtoul(t, NULL, 16);
+		}
+		printf("write offs 0x%x, len 0x%x\n", o, l);
+		ranand_write(p, o, l);
+		free(p);
+	}
+	else if (!strncmp(argv[1], "oob", 4)) {
+		addr = (unsigned int)simple_strtoul(argv[2], NULL, 16); //page
+		p = (u8 *)malloc(CFG_PAGE_OOBSIZE);
+		nfc_read_oob(addr, 0, p, CFG_PAGE_OOBSIZE);
+		printf("oob page %x (addr %x):\n", addr, (addr << CONFIG_PAGE_SIZE_BIT));
+		for (i = 0; i < CFG_PAGE_OOBSIZE; i++)
+			printf("%02x%c", p[i], (i%32 == 31)? '\n':' ');
+		free(p);
+	}
+	else if (!strncmp(argv[1], "init", 5)) {
+		ranand_init();
 	}
 	else
 		printf("Usage:\n%s\n use \"help nand\" for detail!\n", cmdtp->usage);
@@ -1160,7 +1370,9 @@ U_BOOT_CMD(
 	"nand usage:\n"
 	"  nand id\n"
 	"  nand read <addr> <len>\n"
+	"  nand write <addr> <data...>\n"
 	"  nand page <number>\n"
 	"  nand erase <addr> <len>\n"
+	"  nand init\n"
 );
 #endif

@@ -26,6 +26,16 @@
 #include <asm/mipsregs.h>
 #include <rt_mmap.h>
 
+
+#if defined(RT63365_FPGA_BOARD) || defined(RT63365_ASIC_BOARD)
+int do_reset(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
+{
+	ra_outl(RALINK_TIMER_BASE + 0x2c, 0x1);		//timer3 load value
+	ra_or(RALINK_TIMER_BASE, (1 << 5) | (1 << 25));	//timer3 enabled as watchdog
+	return 1;
+}
+#else
+
 #define SOFTRES_REG (RALINK_SYSCTL_BASE + 0x0034)
 #define GORESET		(0x01)
 
@@ -34,6 +44,7 @@ int do_reset(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	*(volatile unsigned int*)(SOFTRES_REG) = GORESET;
 	return 1;
 }
+#endif
 void flush_cache (ulong start_addr, ulong size)
 {
 

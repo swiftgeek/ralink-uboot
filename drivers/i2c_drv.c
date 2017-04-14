@@ -24,6 +24,9 @@
 
 #if (CONFIG_COMMANDS & CFG_CMD_I2C) 
 
+#if defined (RT63365_ASIC_BOARD) || defined (RT63365_FPGA_BOARD)
+#define BBU_I2C
+#endif
 #define	RT2880_I2C_DUMP_STR		"dump"	/* Dump Content Command Prompt    */
 #define	RT2880_I2C_READ_STR		"read"	/* I2C read operation */
 #define	RT2880_I2C_WRITE_STR		"write"	/* I2C read operation */
@@ -38,16 +41,15 @@
 
 #define RT2880_REG(x)			(*((volatile u32 *)(x)))
 
-#define RT2880_I2C_REG_BASE		(RALINK_SYSCTL_BASE + 0x0900)
-#define RT2880_I2C_CONFIG_REG		(RT2880_I2C_REG_BASE+0x00)
-#define RT2880_I2C_CLKDIV_REG		(RT2880_I2C_REG_BASE+0x04)
-#define RT2880_I2C_DEVADDR_REG		(RT2880_I2C_REG_BASE+0x08)
-#define RT2880_I2C_ADDR_REG		(RT2880_I2C_REG_BASE+0x0C)
-#define RT2880_I2C_DATAOUT_REG	 	(RT2880_I2C_REG_BASE+0x10)
-#define RT2880_I2C_DATAIN_REG  		(RT2880_I2C_REG_BASE+0x14)
-#define RT2880_I2C_STATUS_REG  		(RT2880_I2C_REG_BASE+0x18)
-#define RT2880_I2C_STARTXFR_REG		(RT2880_I2C_REG_BASE+0x1C)
-#define RT2880_I2C_BYTECNT_REG		(RT2880_I2C_REG_BASE+0x20)
+#define RT2880_I2C_CONFIG_REG		(RALINK_I2C_BASE+0x00)
+#define RT2880_I2C_CLKDIV_REG		(RALINK_I2C_BASE+0x04)
+#define RT2880_I2C_DEVADDR_REG		(RALINK_I2C_BASE+0x08)
+#define RT2880_I2C_ADDR_REG		(RALINK_I2C_BASE+0x0C)
+#define RT2880_I2C_DATAOUT_REG	 	(RALINK_I2C_BASE+0x10)
+#define RT2880_I2C_DATAIN_REG  		(RALINK_I2C_BASE+0x14)
+#define RT2880_I2C_STATUS_REG  		(RALINK_I2C_BASE+0x18)
+#define RT2880_I2C_STARTXFR_REG		(RALINK_I2C_BASE+0x1C)
+#define RT2880_I2C_BYTECNT_REG		(RALINK_I2C_BASE+0x20)
 
 
 /* I2C_CFG register bit field */
@@ -152,6 +154,7 @@ void i2c_master_init(void);
 /*----------------------------------------------------------------------*/
 void i2c_master_init(void)
 {
+#ifndef BBU_I2C
 	/* reset i2c block */
 	u32 val = RT2880_REG(RT2880_RSTCTRL_REG);
 	val = val | RALINK_I2C_RST;
@@ -160,6 +163,7 @@ void i2c_master_init(void)
 	val = val & ~(RALINK_I2C_RST);
 	RT2880_REG(RT2880_RSTCTRL_REG) = val;
 	udelay(500);
+#endif
 	
 	RT2880_REG(RT2880_I2C_CONFIG_REG) = I2C_CFG_DEFAULT;
 
@@ -417,8 +421,10 @@ int rt2880_i2c_toolkit(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	ulong addr, value;
 	u16 address;
 
+#ifndef BBU_I2C
 	/* configure i2c to normal mode */
 	RT2880_REG(RT2880_GPIOMODE_REG) &= ~1;
+#endif
 
 	switch (argc) {
 		case RT2880_I2C_DUMP:

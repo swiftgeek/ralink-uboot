@@ -36,7 +36,11 @@
 
 #define CONFIG_MIPS32		1	/* MIPS 4Kc CPU core	*/
 //CONFIG_INCA_IP
-#if defined (RT3052_FPGA_BOARD) || defined (RT3352_FPGA_BOARD) || defined (RT2883_FPGA_BOARD) || defined (RT3883_FPGA_BOARD)  || defined (RT5350_FPGA_BOARD) || defined (RT6855_FPGA_BOARD)
+#if defined (RT3052_FPGA_BOARD) || defined (RT3352_FPGA_BOARD) || \
+    defined (RT2883_FPGA_BOARD) || defined (RT3883_FPGA_BOARD) || \
+    defined (RT5350_FPGA_BOARD) || defined (RT6855_FPGA_BOARD) || \
+    defined (RT6352_FPGA_BOARD) || defined (RT71100_FPGA_BOARD) || \
+    defined (RT63365_FPGA_BOARD)
 #define FPGA_BOARD_CLOCK_RATE 40000000
 #else
 #define FPGA_BOARD_CLOCK_RATE 25000000
@@ -53,7 +57,11 @@
 #define CPU_CLOCK_RATE	384000000 
 #elif defined (RT3352_ASIC_BOARD)
 #define CPU_CLOCK_RATE	400000000 
-#elif defined (RT6855_ASIC_BOARD)
+#elif defined (RT6855_ASIC_BOARD) || defined (RT63365_ASIC_BOARD)
+#define CPU_CLOCK_RATE	500000000 
+#elif defined (RT6352_ASIC_BOARD)
+#define CPU_CLOCK_RATE	400000000 
+#elif defined (RT71100_ASIC_BOARD)
 #define CPU_CLOCK_RATE	400000000 
 #elif defined (RT2883_ASIC_BOARD)
 #define CPU_CLOCK_RATE	400000000 
@@ -126,6 +134,12 @@
 #define	CFG_PROMPT		"RT5350 # "
 #elif defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) 
 #define	CFG_PROMPT		"RT6855 # "
+#elif defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) 
+#define	CFG_PROMPT		"RT63365 # "
+#elif defined (RT6352_FPGA_BOARD) || defined (RT6352_ASIC_BOARD) 
+#define	CFG_PROMPT		"RT6352 # "
+#elif defined (RT71100_FPGA_BOARD) || defined (RT71100_ASIC_BOARD) 
+#define	CFG_PROMPT		"RT71100 # "
 #else
 #define	CFG_PROMPT		"RTxxxx # "
 #endif
@@ -160,7 +174,11 @@
 #else
 #define	CFG_LOAD_ADDR		0x80100000	/* default load address	*/
 #define CFG_HTTP_DL_ADDR	0x80300000
+#if defined(RT63365_FPGA_BOARD) || defined(RT63365_ASIC_BOARD)
+#define CFG_SPINAND_LOAD_ADDR	0x80c00000
+#else
 #define CFG_SPINAND_LOAD_ADDR	0x80300000
+#endif
 
 #define CFG_MEMTEST_START	0x80100000
 #define CFG_MEMTEST_END		0x80400000
@@ -217,7 +235,9 @@
       defined (RT3883_FPGA_BOARD) || defined (RT3883_ASIC_BOARD) || \
       defined (RT3352_FPGA_BOARD) || defined (RT3352_ASIC_BOARD) || \
       defined (RT5350_FPGA_BOARD) || defined (RT5350_ASIC_BOARD) || \
-      defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD)
+      defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) || \
+      defined (RT6352_FPGA_BOARD) || defined (RT6352_ASIC_BOARD) || \
+      defined (RT71100_FPGA_BOARD) || defined (RT71100_ASIC_BOARD)
 #define PHYS_FLASH_START	0xBC000000 /* Flash Bank #2 */
 #define PHYS_FLASH_1		0xBC000000 /* Flash Bank #1 */
   #ifdef DUAL_IMAGE_SUPPORT
@@ -260,6 +280,8 @@
   #define CFG_MAX_FLASH_BANKS	2
   #endif
  #endif
+#elif defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD)
+#define PHYS_FLASH_1		0xB0000000
 #endif // defined (RT2880_FPGA_BOARD) || defined (RT2880_ASIC_BOARD)
 
 /* The following #defines are needed to get flash environment right */
@@ -361,12 +383,19 @@
  *   0x60  -- GPIOMODE		GPIO Mode Control Register 
  */
 #define RT2880_SYS_CNTL_BASE			(RALINK_SYSCTL_BASE)
+#if defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD)
+#define RT2880_SYSCFG_REG                       (RT2880_SYS_CNTL_BASE+0x8c)
+#define RT2880_RSTCTRL_REG                      (RT2880_SYS_CNTL_BASE+0x834)
+#define RT2880_RSTSTAT_REG                      (RT2880_SYS_CNTL_BASE+0x38)
+#define RT2880_GPIOMODE_REG                     (RT2880_SYS_CNTL_BASE+0x860)
+#else
 #define RT2880_SYSCFG_REG			(RT2880_SYS_CNTL_BASE+0x10)
 #define RT2880_SYSCFG1_REG			(RT2880_SYS_CNTL_BASE+0x14)
 #define RT2880_CLKCFG1_REG			(RT2880_SYS_CNTL_BASE+0x30)
 #define RT2880_RSTCTRL_REG			(RT2880_SYS_CNTL_BASE+0x34)
 #define RT2880_RSTSTAT_REG			(RT2880_SYS_CNTL_BASE+0x38)
 #define RT2880_GPIOMODE_REG			(RT2880_SYS_CNTL_BASE+0x60)
+#endif
 
 #define RT2880_PRGIO_ADDR       (RALINK_SYSCTL_BASE + 0x600) // Programmable I/O
 #define RT2880_REG_PIOINT       (RT2880_PRGIO_ADDR + 0)
@@ -377,7 +406,18 @@
 #define RT2880_REG_PIODIR       (RT2880_PRGIO_ADDR + 0x24)
 
 #define RALINK_REG(x)		(*((volatile u32 *)(x)))	
+#if defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD)
+#define ra_inb(offset)		(*(volatile unsigned char *)(offset))
+#define ra_inw(offset)		(*(volatile unsigned short *)(offset))
+#define ra_inl(offset)		(*(volatile unsigned long *)(offset))
 
+#define ra_outb(offset,val)	(*(volatile unsigned char *)(offset) = val)
+#define ra_outw(offset,val)	(*(volatile unsigned short *)(offset) = val)
+#define ra_outl(offset,val)	(*(volatile unsigned long *)(offset) = val)
+
+#define ra_and(addr, value) ra_outl(addr, (ra_inl(addr) & (value)))
+#define ra_or(addr, value) ra_outl(addr, (ra_inl(addr) | (value)))
+#endif
 #define RT2880_WDRST            (1<<1)
 #define RT2880_SWSYSRST         (1<<2)
 #define RT2880_SWCPURST         (1<<3)

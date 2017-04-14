@@ -40,7 +40,7 @@ void serial_setbrg (void)
 	//DECLARE_GLOBAL_DATA_PTR;
 	unsigned int clock_divisor = 0;
 	u32 reg, cpu_clock = 0;
-#if defined(RT2880_ASIC_BOARD) || defined(RT2883_ASIC_BOARD) || defined(RT3052_ASIC_BOARD) || defined(RT3352_ASIC_BOARD) || defined(RT3883_ASIC_BOARD) || defined (RT5350_ASIC_BOARD) || defined(RT6855_ASIC_BOARD)
+#if defined(RT2880_ASIC_BOARD) || defined(RT2883_ASIC_BOARD) || defined(RT3052_ASIC_BOARD) || defined(RT3352_ASIC_BOARD) || defined(RT3883_ASIC_BOARD) || defined (RT5350_ASIC_BOARD) || defined(RT6855_ASIC_BOARD) ||  defined(RT6352_ASIC_BOARD) ||  defined(RT71100_ASIC_BOARD)
 	u8	clk_sel;
 	u8	clk_sel2;
 #endif
@@ -52,7 +52,7 @@ void serial_setbrg (void)
 #ifdef RT2880_FPGA_BOARD
 	cpu_clock = 25 * 1000 * 1000;
 	mips_bus_feq = cpu_clock / 2;
-#elif defined (RT2883_FPGA_BOARD) || defined (RT3052_FPGA_BOARD) || defined (RT3352_FPGA_BOARD) || defined (RT3883_FPGA_BOARD) || defined (RT5350_FPGA_BOARD) || defined (RT6855_FPGA_BOARD)
+#elif defined (RT2883_FPGA_BOARD) || defined (RT3052_FPGA_BOARD) || defined (RT3352_FPGA_BOARD) || defined (RT3883_FPGA_BOARD) || defined (RT5350_FPGA_BOARD) || defined (RT6855_FPGA_BOARD) || defined(RT6352_FPGA_BOARD) ||  defined(RT71100_FPGA_BOARD)
 	cpu_clock = 40 * 1000 * 1000;
 	mips_bus_feq = cpu_clock / 3;
 #elif defined(RT2883_ASIC_BOARD) 
@@ -123,6 +123,14 @@ void serial_setbrg (void)
 	}
 #elif defined(RT6855_ASIC_BOARD)
 	cpu_clock = (400*1000*1000);
+	mips_bus_feq = (133*1000*1000);
+#elif defined(RT6352_ASIC_BOARD)
+	/*FIXME*/
+	cpu_clock = (600*1000*1000);
+	mips_bus_feq = (133*1000*1000);
+#elif defined(RT71100_ASIC_BOARD)
+	/*FIXME*/
+	cpu_clock = (800*1000*1000);
 	mips_bus_feq = (133*1000*1000);
 #elif defined(RT3883_ASIC_BOARD)
 	clk_sel = (reg>>8) & 0x03;
@@ -206,7 +214,7 @@ void serial_setbrg (void)
 #else
 #error undef SDR or DDR
 #endif
-#else /* RT2880 ASIC version */
+#elif defined(RT2880_ASIC_BOARD)
 	clk_sel = (reg>>20) & 0x03;
 	switch(clk_sel) {
 #ifdef RT2880_MP
@@ -240,6 +248,10 @@ void serial_setbrg (void)
 #endif
 	}
 	mips_bus_feq = cpu_clock / 2;
+#elif defined(RT63365_ASIC_BOARD) || defined(RT63365_FPGA_BOARD)
+	//use bbu_init_uart() instead, and this is to avoid the compiling error
+#else
+#error "undefined Platform"
 #endif
 
    	//RALINK_REG(RT2880_SYSCFG_REG) = reg;
@@ -252,8 +264,12 @@ void serial_setbrg (void)
       defined(RT3352_ASIC_BOARD) || defined(RT3352_FPGA_BOARD) || \
       defined(RT5350_ASIC_BOARD) || defined(RT5350_FPGA_BOARD) || \
       defined(RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD) || \
-      defined(RT6855_ASIC_BOARD) || defined(RT6855_FPGA_BOARD)
+      defined(RT6855_ASIC_BOARD) || defined(RT6855_FPGA_BOARD) || \
+      defined(RT6352_ASIC_BOARD) || defined(RT6352_FPGA_BOARD) || \
+      defined(RT71100_ASIC_BOARD) || defined(RT71100_FPGA_BOARD)
 	*(unsigned long *)(RALINK_SYSCTL_BASE + 0x0034) = cpu_to_le32(1<<19|1<<12);
+#elif defined(RT63365_ASIC_BOARD) || defined(RT63365_FPGA_BOARD)
+	//use bbu_init_uart insead and avoid the compiling error
 #else
 #error "undefined Platform"
 #endif
@@ -263,7 +279,9 @@ void serial_setbrg (void)
 #if defined(RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD) || \
     defined(RT3352_ASIC_BOARD) || defined(RT3352_FPGA_BOARD) || \
     defined(RT5350_ASIC_BOARD) || defined(RT5350_FPGA_BOARD) || \
-    defined(RT6855_ASIC_BOARD) || defined(RT6855_FPGA_BOARD)
+    defined(RT6855_ASIC_BOARD) || defined(RT6855_FPGA_BOARD) || \
+    defined(RT6352_ASIC_BOARD) || defined(RT6352_FPGA_BOARD) || \
+    defined(RT71100_ASIC_BOARD) || defined(RT71100_FPGA_BOARD)
 	clock_divisor = (40*1000*1000/ SERIAL_CLOCK_DIVISOR / CONFIG_BAUDRATE);
 #else
 	clock_divisor = (mips_bus_feq/ SERIAL_CLOCK_DIVISOR / CONFIG_BAUDRATE);
@@ -279,6 +297,58 @@ void serial_setbrg (void)
 }
 
 
+static unsigned long uclk_20M[13]={ // 65000*(b*16*1)/2000000
+	59904,          // Baud rate 115200
+	29952,          // Baud rate 57600
+	19968,          // Baud rate 38400
+	14976,          // Baud rate 28800
+	9984,           // Baud rate 19200
+	7488,           // Baud rate 14400
+	4992,           // Baud rate 9600
+	2496,           // Baud rate 4800
+	1248,           // Baud rate 2400
+	624,            // Baud rate 1200
+	312,            // Baud rate 600
+	156,            // Baud rate 300
+	57              // Baud rate 110
+};
+
+#if defined(RT63365_ASIC_BOARD) || defined(RT63365_FPGA_BOARD)
+void bbu_uart_init(void)
+{
+	int i;
+	unsigned long div_x, div_y;
+	unsigned long word;
+
+	// Set FIFO controo enable, reset RFIFO, TFIFO, 16550 mode, watermark=0x00 (1 byte)
+	ra_outb(CR_UART_FCR, (0x0f|(0x0<<6)));
+
+	// Set modem control to 0
+	ra_outb(CR_UART_MCR, 0x0);
+
+	// Disable IRDA, Disable Power Saving Mode, RTS , CTS flow control
+	ra_outb(CR_UART_MISCC, 0x0);
+
+	// Set interrupt Enable to, enable Tx, Rx and Line status
+	/*ra_outb(CR_UART_IER, 0x01);*/
+
+	/* access the bardrate divider */
+
+	ra_outb(CR_UART_LCR, LCR_DLAB);
+
+	div_y = 65000;
+	div_x = uclk_20M[1];
+	word = (div_x<<16)|div_y;
+	ra_outl(CR_UART_XYD, word);
+
+	/* Set Baud Rate Divisor to 1*16 */
+	ra_outb(CR_UART_BRDL, 0x01);
+	ra_outb(CR_UART_BRDH, 0x00);
+
+	/* Set DLAB = 0, clength = 8, stop =1, no parity check  */
+	ra_outb(CR_UART_LCR, LCR_WLS0 | LCR_WLS1);
+}
+#endif
 /*
  * Initialise the serial port with the given baudrate. The settings
  * are always 8 data bits, no parity, 1 stop bit, no start bits.
@@ -286,8 +356,11 @@ void serial_setbrg (void)
  */
 int serial_init (void)
 {
+#if defined(RT63365_ASIC_BOARD) || defined(RT63365_FPGA_BOARD)
+	bbu_uart_init();
+#else
 	serial_setbrg ();
-
+#endif
 	return (0);
 }
 
@@ -297,6 +370,12 @@ int serial_init (void)
  */
 void serial_putc (const char c)
 {
+#if defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) 
+	while (!(ra_inb(CR_UART_LSR) & LSR_TEMT));
+	ra_outb(CR_UART_THR, c);
+	if (c == '\n')
+		serial_putc ('\r');
+#else
 	/* wait for room in the tx FIFO on UART */
 	while ((LSR(CFG_RT2880_CONSOLE) & LSR_TEMT) == 0);
 
@@ -305,6 +384,7 @@ void serial_putc (const char c)
 	/* If \n, also do \r */
 	if (c == '\n')
 		serial_putc ('\r');
+#endif
 }
 
 /*
@@ -314,7 +394,11 @@ void serial_putc (const char c)
  */
 int serial_tstc (void)
 {
+#if defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) 
+	return (ra_inb(CR_UART_LSR) & LSR_DR);
+#else
 	return LSR(CFG_RT2880_CONSOLE) & LSR_DR;
+#endif
 }
 
 /*
@@ -324,9 +408,13 @@ int serial_tstc (void)
  */
 int serial_getc (void)
 {
+#if defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) 
+	while (!(ra_inb(CR_UART_LSR) & LSR_DR));
+	return (char) (ra_inb(CR_UART_RBR) & 0xff);
+#else
 	while (!(LSR(CFG_RT2880_CONSOLE) & LSR_DR));
-
 	return (char) RBR(CFG_RT2880_CONSOLE) & 0xff;
+#endif
 }
 
 void
