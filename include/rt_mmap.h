@@ -1,0 +1,113 @@
+/**************************************************************************
+ *
+ *  BRIEF MODULE DESCRIPTION
+ *     register definition for Ralink RT-series SoC
+ *
+ *  Copyright 2007 Ralink Inc.
+ *
+ *  This program is free software; you can redistribute  it and/or modify it
+ *  under  the terms of  the GNU General  Public License as published by the
+ *  Free Software Foundation;  either version 2 of the  License, or (at your
+ *  option) any later version.
+ *
+ *  THIS  SOFTWARE  IS PROVIDED   ``AS  IS'' AND   ANY  EXPRESS OR IMPLIED
+ *  WARRANTIES,   INCLUDING, BUT NOT  LIMITED  TO, THE IMPLIED WARRANTIES OF
+ *  MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN
+ *  NO  EVENT  SHALL   THE AUTHOR  BE    LIABLE FOR ANY   DIRECT, INDIRECT,
+ *  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ *  NOT LIMITED   TO, PROCUREMENT OF  SUBSTITUTE GOODS  OR SERVICES; LOSS OF
+ *  USE, DATA,  OR PROFITS; OR  BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ *  ANY THEORY OF LIABILITY, WHETHER IN  CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ *  You should have received a copy of the  GNU General Public License along
+ *  with this program; if not, write  to the Free Software Foundation, Inc.,
+ *  675 Mass Ave, Cambridge, MA 02139, USA.
+ *
+ *
+ **************************************************************************
+ */
+
+#ifndef __RALINK_MMAP__
+#define __RALINK_MMAP__
+
+#if defined (RT2880_FPGA_BOARD) || defined (RT2880_ASIC_BOARD)
+
+#ifdef RT2880_SHUTTLE
+
+#define RALINK_SYSCTL_BASE 		0xA0300000
+#define RALINK_TIMER_BASE		0xA0300100
+#define RALINK_INTCL_BASE		0xA0300200
+#define RALINK_MEMCTRL_BASE		0xA0300300
+#define RALINK_UART_BASE		0xA0300500
+#define RALINK_PIO_BASE			0xA0300600
+#define RALINK_I2C_BASE			0xA0300900
+#define RALINK_SPI_BASE			0xA0300B00
+#define RALINK_UART_LITE_BASE		0xA0300C00
+#define RALINK_FRAME_ENGINE_BASE	0xA0310000
+#define RALINK_EMBEDD_ROM_BASE		0xA0400000
+#define RALINK_PCI_BASE			0xA0500000
+#define RALINK_11N_MAC_BASE		0xA0600000
+
+#else // RT2880_MP
+
+#define RALINK_SYSCTL_BASE 		0xA0300000
+#define RALINK_TIMER_BASE		0xA0300100
+#define RALINK_INTCL_BASE		0xA0300200
+#define RALINK_MEMCTRL_BASE		0xA0300300
+#define RALINK_UART_BASE		0xA0300500
+#define RALINK_PIO_BASE			0xA0300600
+#define RALINK_I2C_BASE			0xA0300900
+#define RALINK_SPI_BASE			0xA0300B00
+#define RALINK_UART_LITE_BASE		0x00300C00
+#define RALINK_FRAME_ENGINE_BASE	0xA0400000
+#define RALINK_EMBEDD_ROM_BASE		0xA0410000
+#define RALINK_PCI_BASE			0xA0440000
+#define RALINK_11N_MAC_BASE		0xA0480000
+
+#endif
+
+#elif defined (RT2883_FPGA_BOARD) || defined (RT2883_ASIC_BOARD) || defined (RT3052_FPGA_BOARD) || defined (RT3052_ASIC_BOARD)
+
+#define RALINK_SYSCTL_BASE		0xB0000000
+#define RALINK_TIMER_BASE		0xB0000100
+#define RALINK_INTCL_BASE		0xB0000200
+#define RALINK_MEMCTRL_BASE		0xB0000300
+#define RALINK_PCM_BASE			0xB0000400
+#define RALINK_UART_BASE		0xB0000500
+#define RALINK_PIO_BASE			0xB0000600
+#define RALINK_GDMA_BASE		0xB0000700
+#define RALINK_NAND_CTRL_BASE		0xB0000800
+#define RALINK_I2C_BASE			0xB0000900
+#define RALINK_I2S_BASE			0xB0000A00
+#define RALINK_SPI_BASE			0xB0000B00
+#define RALINK_UART_LITE_BASE		0xB0000C00
+#define RALINK_FRAME_ENGINE_BASE	0xB0100000
+#define RALINK_ETH_SW_BASE		0xB0110000
+#define RALINK_11N_MAC_BASE		0xB0180000
+#define RALINK_USB_OTG_BASE		0xB01C0000
+
+#elif defined (RT3883_FPGA_BOARD) || defined (RT3883_ASIC_BOARD) 
+
+#define RALINK_SYSCTL_BASE              0xB0000000
+#define RALINK_TIMER_BASE               0xB0000100
+#define RALINK_INTCL_BASE               0xB0000200
+#define RALINK_MEMCTRL_BASE             0xB0000300
+#define RALINK_PCM_BASE                 0xB0000400
+#define RALINK_UART_BASE                0xB0000500
+#define RALINK_PIO_BASE                 0xB0000600
+#define RALINK_GDMA_BASE                0xB0000700
+#define RALINK_NAND_CTRL_BASE           0xB0000800
+#define RALINK_I2C_BASE                 0xB0000900
+#define RALINK_I2S_BASE                 0xB0000A00
+#define RALINK_SPI_BASE                 0xB0000B00
+#define RALINK_UART_LITE_BASE           0xB0000C00
+#define RALINK_FRAME_ENGINE_BASE        0xB0100000
+#define RALINK_PCI_EXTRESS_BASE         0xB0140000
+#define RALINK_11N_MAC_BASE             0xB0180000
+#define RALINK_USB_OTG_BASE             0xB01C0000
+
+#endif
+
+#endif // __RALINK_MMAP__

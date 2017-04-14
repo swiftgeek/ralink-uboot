@@ -1,0 +1,253 @@
+
+/******************************************************************************
+*
+* (c) Copyright 1996-2000, Palmchip Corporation
+*
+* This document is an unpublished work protected under the copyright laws
+* of the United States containing the confidential, proprietary and trade
+* secret information of Palmchip Corporation. This document may not be
+* copied or reproduced in any form whatsoever without the express written
+* permission of Palmchip Corporation.
+*
+*******************************************************************************
+*
+*  File Name: sysc.c
+*     Author: Linda Yang
+*
+*******************************************************************************
+*
+* Revision History:
+*
+*      Date    Name  Comments
+*    --------  ---   ------------------------------------
+*    11/20/00  LYT   Created
+*
+*
+*
+*******************************************************************************/
+
+/* FILE_DESC ******************************************************************/
+//
+// Purpose:
+//    All the system and processor control block related variables and
+//    functions are defined here.
+//
+// Sp. Notes:
+//    None.
+//
+/******************************************************************************/
+
+/*=====================*
+ *  Include Files      *
+ *=====================*/
+#include "include/pubdefs.h"
+#include "include/product.h"
+#include "include/sysc.h"
+
+
+/*=====================*
+ *  Defines            *
+ *=====================*/
+
+
+/*=====================*
+ *  External Variables *
+ *=====================*/
+
+
+/*=====================*
+ *  External Functions *
+ *=====================*/
+
+
+/*=====================*
+ *  Global Variables   *
+ *=====================*/
+
+
+/*=====================*
+ *  Local Functions    *
+ *=====================*/
+
+
+/* FUNCTION_DESC **************************************************************/
+//
+// NAME           SyscCalcByteSel()
+//
+// SYNOPSIS       uint32 SyscCalcByteSel ( uint32 addr, uint32 size )
+//
+// TYPE           Regular function
+//
+// INPUT          uint32 addr: the address to be accessed
+//                uint32 size: the number of bytes to be accessed (1, 2, or 4)
+//
+// OUTPUT         uint32: 4 bit value of cpu byte select bits
+//                        If size is invalid, returns 0
+//
+// DESCRIPTION    This function determine the byte select bits which should be
+//                set for the given address and size of access.
+//                
+// NOTE
+//
+/******************************************************************************/
+uint32 SyscCalcByteSel(uint32 addr, uint32 size)
+{
+#if 1	
+    register uint32 bsel, align;
+
+
+    if (size == 4)
+    {
+        bsel = 0xF;
+    }
+    else if (size == 2)
+    {
+        bsel = 0x3;
+    }
+    else if (size == 1)
+    {
+        bsel = 0x1;
+    }
+    else
+    {
+        return 0x0;	/* Invalid size */
+    }
+
+    align = addr & 0x3;
+    bsel = (bsel << align) & 0xF;
+
+    return bsel;
+#endif    
+}
+
+uint32 cfg;
+
+/* FUNCTION_DESC **************************************************************/
+//
+// NAME           SyscPllEngage()
+//
+// SYNOPSIS       void SyscPllEngage(syscRegs *syscPtr, uint32 mdiv,
+//                                   uint32 ndiv)
+//
+// TYPE           Regular function
+//
+// INPUT          syscRegs *syscPtr: Base Pointer of the System Controller
+//                                   Register
+//                uint32 mdiv: the reference clock prescale
+//                uint32 ndiv: the feedback clock prescale
+//
+// OUTPUT         None
+//
+// DESCRIPTION    Initialized the PLL with the given reference clock prescale
+//                and feedback clock prescale.
+//                Once the pll is ready, the pll output will be selected as the
+//                system clock.
+//
+// NOTE           f_out = (f_ref / (mdiv + 1)) * (ndiv + 1)
+//                where f_out = pll output frequency,
+//                      f_ref = pll reference clock
+//
+/******************************************************************************/
+void SyscPllEngage(syscRegs *syscPtr, uint32 mdiv, uint32 ndiv)
+{
+    
+#if 1
+
+    /*
+    ** Put pll control in its POR state. (bypass, ~enable, reset)
+    */
+    SyscPllResetAll(syscPtr);
+    
+
+    /*
+    ** Setup configuration.
+    */
+    cfg = (((mdiv & PLL_REFCLK_MDIV_MASK)   << PLL_REFCLK_MDIV_SHIFT)
+         | ((ndiv & PLL_FEEDBACK_NDIV_MASK) << PLL_FEEDBACK_NDIV_SHIFT));
+
+    SyscPllSetCfg(syscPtr, cfg);
+
+
+    /*
+    ** Enable the pll.
+    ** Must be done in two steps.
+    ** Step 1:  take pll out of reset state
+    ** Step 2:  enable pll
+    */
+    SyscPllClearReset(syscPtr);
+    SyscPllEnable(syscPtr);
+    
+
+    /*
+    ** Wait until pll locked before selecting pll as system clock
+    */
+    while (!SyscPllIsLocked(syscPtr))
+    {
+        /* wait */
+    }
+
+
+    /*
+    ** Select pll clock for system clock.
+    */
+    SyscPllClearBypass(syscPtr);
+#endif    
+}
+
+
+/* FUNCTION_DESC **************************************************************/
+//
+// NAME           SyscDllEngage()
+//
+// SYNOPSIS       void SyscDllEngage(syscRegs *syscPtr, bool invSys,
+//                                   dllPhase phase)
+//
+// TYPE           Regular function
+//
+// INPUT          syscRegs *syscPtr: Base Pointer of the System Controller
+//                                   Register
+//                bool invSys: TRUE = invert the system clock
+//                dllPhase phase: the phase shift to apply to the system clock
+//
+// OUTPUT         None
+//
+// DESCRIPTION    Enable the DLL with the given configuration.
+//
+// NOTE           None
+//
+/******************************************************************************/
+void SyscDllEngage(syscRegs *syscPtr, bool invSys, dllPhase phase)
+{
+#if 1
+    /*
+    ** Put dll in disabled state to change the configuration.
+    */
+    SyscDllDisable(syscPtr);
+
+
+    /*
+    ** Setup configuration.
+    */
+    cfg = ((uint32)phase & DLL_PHASE_MASK) << DLL_PHASE_SHIFT;
+    cfg |= (invSys) ? DLL_INVERT_SYSCLK : 0;
+
+
+    SyscDllSetCfg(syscPtr, cfg);
+
+
+    /*
+    ** Enable the dll.
+    */
+    SyscDllEnable(syscPtr);
+    
+
+    /*
+    ** Wait until dll locked
+    */
+    while (!SyscDllIsLocked(syscPtr))
+    {
+        /* wait */
+    }
+#endif     
+}
+

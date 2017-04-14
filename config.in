@@ -1,0 +1,192 @@
+string 'Cross Compiler Path' CONFIG_CROSS_COMPILER_PATH /opt/buildroot-gcc342/bin
+comment ""
+
+mainmenu_name 'Uboot Configuration'
+choice 'Platform Type' "RT2880-ASIC RT2880_ASIC_BOARD \
+                          RT3052-ASIC RT3052_ASIC_BOARD \
+                         "
+
+#########
+# RT2880
+#########
+if [ "$RT2880_FPGA_BOARD" = "y" -o \
+     "$RT2880_ASIC_BOARD" = "y" ]; then
+define_bool RT2880_MP y
+define_bool ON_BOARD_SPI_FLASH_COMPONENT n
+
+choice 'GMAC connected to ' "IC+ MAC_TO_ICPLUS_MODE \
+			    100Phy  MAC_TO_100PHY_MODE \
+			    Vitesse MAC_TO_VITESSE_MODE \
+			    GigaPhy MAC_TO_GIGAPHY_MODE 
+			    "
+fi
+
+#########
+# RT2883
+#########
+if [ "$RT2883_FPGA_BOARD" = "y" -o \
+     "$RT2883_ASIC_BOARD" = "y" ]; then
+define_bool RT2883_MP y
+choice 'GMAC connected to' "IC+ MAC_TO_ICPLUS_MODE \
+			    100Phy  MAC_TO_100PHY_MODE \
+			    Vitesse MAC_TO_VITESSE_MODE \
+			    GigaPhy MAC_TO_GIGAPHY_MODE 
+			    "
+fi
+
+#########
+# RT3052
+#########
+if [ "$RT3052_FPGA_BOARD" = "y" -o \
+     "$RT3052_ASIC_BOARD" = "y" ]; then
+
+define_bool RT3052_MP2 y
+choice 'Port 5 Connect to' "None		P5_MAC_TO_NONE_MODE \
+			    Giga_Phy(RGMII)	P5_MAC_TO_PHY_MODE \
+	       	      	    Giga_SW/iNIC(RGMII)	P5_RGMII_TO_MAC_MODE \
+		            External_CPU(MII_RvMII) P5_MII_TO_MAC_MODE \
+		            External_CPU(RvMII_MII) P5_RMII_TO_MAC_MODE
+		      	   " None
+                       
+define_bool MAC_TO_ICPLUS_MODE n
+define_bool MAC_TO_100PHY_MODE n
+define_bool MAC_TO_VITESSE_MODE n
+define_bool MAC_TO_GIGAPHY_MODE n
+if [ "$P5_MAC_TO_PHY_MODE" = "y" ]; then
+   if [ "$RT3052_FPGA_BOARD" = "y" ]; then
+      define_hex MAC_TO_GIGAPHY_MODE_ADDR  0x0
+   else
+      hex "GigaPHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1f
+   fi
+fi
+fi
+
+#########
+# RT3883
+#########
+if [ "$RT3883_FPGA_BOARD" = "y" -o \
+     "$RT3883_ASIC_BOARD" = "y" ]; then
+define_bool RT3883_MP y
+choice 'GE1 connected to' "IC+ MAC_TO_ICPLUS_MODE \
+			    100Phy  MAC_TO_100PHY_MODE \
+			    Vitesse MAC_TO_VITESSE_MODE \
+			    GigaPhy MAC_TO_GIGAPHY_MODE 
+			    "
+bool 'GE2 Support'	RT3883_USE_GE2
+fi
+
+#########
+# GMAC
+#########
+if [ "$MAC_TO_ICPLUS_MODE" = "y" -o \
+     "$MAC_TO_100PHY_MODE" = "y" ]; then
+    define_bool MAC_TO_100PHY_MODE y
+fi
+if [ "$MAC_TO_VITESSE_MODE" = "y" -o \
+     "$P5_RGMII_TO_MAC_MODE" = "y" ]; then
+    define_bool GPIO10_RESET_MODE y
+fi
+if [ "$MAC_TO_GIGAPHY_MODE" = "y" ]; then
+    hex "GigaPHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1f
+fi
+
+#########
+# DRAM
+#########
+if [ "$ON_BOARD_SPI_FLASH_COMPONENT" != "y" ]; then
+if [ "$RT3883_FPGA_BOARD" == "y" -o "$RT3883_ASIC_BOARD" == "y" ]; then
+choice 'DRAM Type' "SDR ON_BOARD_SDR \
+	            DDR ON_BOARD_DDR
+		   "
+else
+define_bool ON_BOARD_SDR y
+fi
+if [ "$ON_BOARD_SDR" = "y" ]; then
+choice 'DRAM Component' "64Mb ON_BOARD_64M_DRAM_COMPONENT \
+                         128Mb ON_BOARD_128M_DRAM_COMPONENT \
+                         256Mb ON_BOARD_256M_DRAM_COMPONENT 
+		      "
+else
+choice 'DDR Component' "128Mb ON_BOARD_128M_DRAM_COMPONENT \
+                        256Mb ON_BOARD_256M_DRAM_COMPONENT \
+                        512Mb ON_BOARD_512M_DRAM_COMPONENT \
+                        1024Mb ON_BOARD_1024M_DRAM_COMPONENT
+		      "
+choice 'DDR Width' "8bits ON_BOARD_DDR_WIDTH_8 \
+	            16bits ON_BOARD_DDR_WIDTH_16
+		   "
+fi
+choice 'DRAM Bus' "16bits ON_BOARD_16BIT_DRAM_BUS \
+                   32bits ON_BOARD_32BIT_DRAM_BUS 
+		  " 
+fi
+
+#########
+# FLASH
+#########
+choice 'Flash Type' "NOR ON_BOARD_NOR_FLASH_COMPONENT \
+                     NAND ON_BOARD_NAND_FLASH_COMPONENT \
+                     SPI ON_BOARD_SPI_FLASH_COMPONENT
+		    " 
+bool "Dual Image" DUAL_IMAGE_SUPPORT
+if [ "$RT2880_FPGA_BOARD" = "y" -o \
+     "$RT2880_ASIC_BOARD" = "y" -o "$DUAL_IMAGE_SUPPORT" = "y" ]; then
+choice 'Flash Size' "4M ON_BOARD_4M_FLASH_COMPONENT \
+                     8M ON_BOARD_8M_FLASH_COMPONENT \
+                     16M ON_BOARD_16M_FLASH_COMPONENT 
+		    " 
+fi
+
+###############
+# Option
+###############
+if [ "$ON_BOARD_SPI_FLASH_COMPONENT" = "y" -o "$ON_BOARD_NAND_FLASH_COMPONENT" = "y" ]; then
+define_bool UBOOT_RAM y
+comment ""
+else
+choice 'Ram/Rom version' "RAM UBOOT_RAM \
+			  ROM UBOOT_ROM 
+			 " ROM
+fi
+
+
+if [ "$UBOOT_ROM" = "y" ]; then
+if [ "$RT3052_FPGA_BOARD" = "y" -o \
+     "$RT3052_ASIC_BOARD" = "y" ]; then
+define_hex TEXT_BASE  0xBF000000
+else
+if [ "$RT2883_FPGA_BOARD" = "y" -o "$RT2883_ASIC_BOARD" = "y" -o \
+     "$RT3883_FPGA_BOARD" = "y" -o "$RT3883_ASIC_BOARD" = "y" ]; then
+define_hex TEXT_BASE  0xBC000000
+else
+define_hex TEXT_BASE  0xBFC00000
+fi
+fi
+fi
+
+if [ "$UBOOT_RAM" = "y" ]; then
+if [ "$RT2883_FPGA_BOARD" = "y" -o \
+     "$RT2883_ASIC_BOARD" = "y" -o \
+     "$RT3052_FPGA_BOARD" = "y" -o \
+     "$RT3052_ASIC_BOARD" = "y" -o \
+     "$RT3883_FPGA_BOARD" = "y" -o \
+     "$RT3883_ASIC_BOARD" = "y" -o \
+     "$RT3052_FPGA_BOARD" = "y" -o \
+     "$RT3052_ASIC_BOARD" = "y" ]; then
+define_hex TEXT_BASE  0x80200000
+else
+define_hex TEXT_BASE  0x8A200000
+fi
+fi
+
+
+if [ "$RT3052_ASIC_BOARD" = "y" -o \
+     "$RT3052_FPGA_BOARD" = "y" -o \
+     "$MAC_TO_ICPLUS_MODE" = "y" ]; then
+bool "Partition LAN/WAN" LAN_WAN_PARTITION
+if [ "$LAN_WAN_PARTITION" = "y" ]; then
+choice 'LAN/WAN Board Layout' "W/LLLL RALINK_DEMO_BOARD_PVLAN \
+		               LLLL/W RALINK_EV_BOARD_PVLAN 
+			      "
+fi
+fi
