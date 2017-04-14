@@ -18,6 +18,8 @@
 #define ZEXPORT	/* empty */
 unsigned long crc32 (unsigned long, const unsigned char *, unsigned int);
 
+#define DYNAMIC_CRC_TABLE
+
 #ifdef DYNAMIC_CRC_TABLE
 
 local int crc_table_empty = 1;

@@ -4,7 +4,7 @@
  *  Copyright (c) 2000 David Woodhouse <dwmw2@mvhi.com>
  *                     Steven J. Hill <sjhill@cotw.com>
  *
- * $Id: nand_ids.h,v 1.1.1.1 2006-05-22 09:48:46 yjlin Exp $
+ * $Id: //WIFI_SOC/release/SDK_4_1_0_0/Uboot/include/linux/mtd/nand_ids.h#1 $
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as

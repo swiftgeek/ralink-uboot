@@ -1,4 +1,4 @@
-/* $Id: types.h,v 1.1.1.1 2006-05-22 09:48:46 yjlin Exp $
+/* $Id: //WIFI_SOC/release/SDK_4_1_0_0/Uboot/include/asm/types.h#1 $
  *
  * This file is subject to the terms and conditions of the GNU General Public
  * License.  See the file "COPYING" in the main directory of this archive

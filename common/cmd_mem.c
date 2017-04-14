@@ -38,6 +38,7 @@
 
 extern ulong		NetBootFileXferSize;
 
+#if (CONFIG_COMMANDS & CFG_CMD_MEMORY)
 int cmd_get_data_size(char* arg, int default_size)
 {
 	/* Check for a size specification .b, .w or .l.
@@ -207,193 +208,6 @@ int do_mem_mm ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 int do_mem_nm ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 	return mod_mem (cmdtp, 0, flag, argc, argv);
-}
-
-int do_mem_mw ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
-{
-#ifdef kaiker
-	ulong	addr, writeval, count;
-	int	size;
-
-	if ((argc < 3) || (argc > 4)) {
-		printf ("Usage:\n%s\n", cmdtp->usage);
-		return 1;
-	}
-
-	/* Check for size specification.
-	*/
-	if ((size = cmd_get_data_size(argv[0], 4)) < 1)
-		return 1;
-
-	/* Address is specified since argc > 1
-	*/
-	addr = simple_strtoul(argv[1], NULL, 16);
-	addr += base_address;
-
-	/* Get the value to write.
-	*/
-	writeval = simple_strtoul(argv[2], NULL, 16);
-
-	/* Count ? */
-	if (argc == 4) {
-		count = simple_strtoul(argv[3], NULL, 16);
-	} else {
-		count = 1;
-	}
-
-	while (count-- > 0) {
-		if (size == 4)
-			*((ulong  *)addr) = (ulong )writeval;
-		else if (size == 2)
-			*((ushort *)addr) = (ushort)writeval;
-		else
-			*((u_char *)addr) = (u_char)writeval;
-		addr += size;
-	}
-	#endif
-	return 0;
-}
-
-#ifdef CONFIG_MX_CYCLIC
-int do_mem_mdc ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
-{
-	int i;
-	ulong count;
-
-	if (argc < 4) {
-		printf ("Usage:\n%s\n", cmdtp->usage);
-		return 1;
-	}
-
-	count = simple_strtoul(argv[3], NULL, 10);
-
-	for (;;) {
-		do_mem_md (NULL, 0, 3, argv);
-
-		/* delay for <count> ms... */
-		for (i=0; i<count; i++)
-			udelay (1000);
-
-		/* check for ctrl-c to abort... */
-		if (ctrlc()) {
-			puts("Abort\n");
-			return 0;
-		}
-	}
-
-	return 0;
-}
-
-int do_mem_mwc ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
-{
-	int i;
-	ulong count;
-
-	if (argc < 4) {
-		printf ("Usage:\n%s\n", cmdtp->usage);
-		return 1;
-	}
-
-	count = simple_strtoul(argv[3], NULL, 10);
-
-	for (;;) {
-		do_mem_mw (NULL, 0, 3, argv);
-
-		/* delay for <count> ms... */
-		for (i=0; i<count; i++)
-			udelay (1000);
-
-		/* check for ctrl-c to abort... */
-		if (ctrlc()) {
-			puts("Abort\n");
-			return 0;
-		}
-	}
-
-	return 0;
-}
-#endif /* CONFIG_MX_CYCLIC */
-
-#ifdef RT2880_U_BOOT_CMD_OPEN
-int do_mem_cmp (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
-{
-
-	ulong	addr1, addr2, count, ngood;
-	int	size;
-	int     rcode = 0;
-#ifdef kaiker
-	if (argc != 4) {
-		printf ("Usage:\n%s\n", cmdtp->usage);
-		return 1;
-	}
-
-	/* Check for size specification.
-	*/
-	if ((size = cmd_get_data_size(argv[0], 4)) < 0)
-		return 1;
-
-	addr1 = simple_strtoul(argv[1], NULL, 16);
-	addr1 += base_address;
-
-	addr2 = simple_strtoul(argv[2], NULL, 16);
-	addr2 += base_address;
-
-	count = simple_strtoul(argv[3], NULL, 16);
-
-#ifdef CONFIG_HAS_DATAFLASH
-
-	if (addr_dataflash(addr1) | addr_dataflash(addr2)){
-		puts ("Comparison with DataFlash space not supported.\n\r");
-		return 0;
-	}
-#endif
-
-	ngood = 0;
-
-	while (count-- > 0) {
-		if (size == 4) {
-			ulong word1 = *(ulong *)addr1;
-			ulong word2 = *(ulong *)addr2;
-			if (word1 != word2) {
-				printf("word at 0x%08lx (0x%08lx) "
-					"!= word at 0x%08lx (0x%08lx)\n",
-					addr1, word1, addr2, word2);
-				rcode = 1;
-				break;
-			}
-		}
-		else if (size == 2) {
-			ushort hword1 = *(ushort *)addr1;
-			ushort hword2 = *(ushort *)addr2;
-			if (hword1 != hword2) {
-				printf("halfword at 0x%08lx (0x%04x) "
-					"!= halfword at 0x%08lx (0x%04x)\n",
-					addr1, hword1, addr2, hword2);
-				rcode = 1;
-				break;
-			}
-		}
-		else {
-			u_char byte1 = *(u_char *)addr1;
-			u_char byte2 = *(u_char *)addr2;
-			if (byte1 != byte2) {
-				printf("byte at 0x%08lx (0x%02x) "
-					"!= byte at 0x%08lx (0x%02x)\n",
-					addr1, byte1, addr2, byte2);
-				rcode = 1;
-				break;
-			}
-		}
-		ngood++;
-		addr1 += size;
-		addr2 += size;
-	}
-
-	printf("Total of %ld %s%s were the same\n",
-		ngood, size == 4 ? "word" : size == 2 ? "halfword" : "byte",
-		ngood == 1 ? "" : "s");
-#endif
-	return rcode;
 }
 
 int do_mem_base (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
@@ -1065,7 +879,6 @@ int do_mem_crc (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 #endif	/* CONFIG_CRC32_VERIFY */
 
 /**************************************************/
-#if (CONFIG_COMMANDS & CFG_CMD_MEMORY)
 U_BOOT_CMD(
 	md,     3,     1,      do_mem_md,
 	"md      - memory display\n",
@@ -1083,20 +896,6 @@ U_BOOT_CMD(
 	"nm      - memory modify (constant address)\n",
 	"[.b, .w, .l] address\n    - memory modify, read and keep address\n"
 );
-
-U_BOOT_CMD(
-	mw,    4,    1,     do_mem_mw,
-	"mw      - memory write (fill)\n",
-	"[.b, .w, .l] address value [count]\n    - write memory\n"
-);
-
-#ifdef RT2880_U_BOOT_CMD_OPEN
-U_BOOT_CMD(
-	cmp,    4,     1,     do_mem_cmp,
-	"cmp     - memory compare\n",
-	"[.b, .w, .l] addr1 addr2 count\n    - compare memory\n"
-);
-#endif
 
 #ifndef CONFIG_CRC32_VERIFY
 #ifdef RT2880_U_BOOT_CMD_OPEN
@@ -1151,20 +950,6 @@ U_BOOT_CMD(
 );
 #endif
 
-#ifdef CONFIG_MX_CYCLIC
-U_BOOT_CMD(
-	mdc,     4,     1,      do_mem_mdc,
-	"mdc     - memory display cyclic\n",
-	"[.b, .w, .l] address count delay(ms)\n    - memory display cyclic\n"
-);
-
-U_BOOT_CMD(
-	mwc,     4,     1,      do_mem_mwc,
-	"mwc     - memory write cyclic\n",
-	"[.b, .w, .l] address value delay(ms)\n    - memory write cyclic\n"
-);
-#endif /* CONFIG_MX_CYCLIC */
-
 #ifdef RALINK_SSO_TEST_FUN
 int do_sso_test(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
@@ -1214,7 +999,6 @@ U_BOOT_CMD(
 #endif
 
 #endif /* CONFIG_COMMANDS & CFG_CMD_MEMORY */
-#endif	/* CFG_CMD_MEMORY */
 
 #ifdef CFG_ENV_IS_IN_FLASH
 int do_mem_cp ( cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])

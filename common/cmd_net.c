@@ -35,6 +35,7 @@ extern int do_bootm (cmd_tbl_t *, int, int, char *[]);
 extern int modifies;
 static int netboot_common (int, cmd_tbl_t *, int , char *[]);
 
+#ifdef RALINK_CMDLINE
 #ifdef RT2880_U_BOOT_CMD_OPEN
 int do_bootp (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
@@ -47,6 +48,7 @@ U_BOOT_CMD(
 	"[loadAddress] [bootfilename]\n"
 );
 #endif
+#endif
 
 int do_tftpb (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
@@ -56,12 +58,16 @@ int do_tftpb (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	return netboot_common (TFTP, cmdtp, argc, argv);
 }
 
+#ifdef RALINK_CMDLINE
 U_BOOT_CMD(
 	tftpboot,	3,	1,	do_tftpb,
 	"tftpboot- boot image via network using TFTP protocol\n",
 	"[loadAddress] [bootfilename]\n"
 );
+#endif
+
 #ifdef RT2880_U_BOOT_CMD_OPEN
+#ifdef RALINK_CMDLINE
 int do_rarpb (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 	return netboot_common (RARP, cmdtp, argc, argv);
@@ -72,6 +78,7 @@ U_BOOT_CMD(
 	"rarpboot- boot image via network using RARP/TFTP protocol\n",
 	"[loadAddress] [bootfilename]\n"
 );
+#endif
 #endif
 #if (CONFIG_COMMANDS & CFG_CMD_DHCP)
 int do_dhcp (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
@@ -260,7 +267,7 @@ int do_ping (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 U_BOOT_CMD(
 	ping,	2,	1,	do_ping,
-	"ping\t- kaiker,send ICMP ECHO_REQUEST to network host\n",
+	"ping\t- send ICMP ECHO_REQUEST to network host\n",
 	"pingAddress\n"
 );
 #endif	/* CFG_CMD_PING */

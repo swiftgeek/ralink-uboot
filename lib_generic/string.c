@@ -20,6 +20,26 @@
 #include <linux/ctype.h>
 #include <malloc.h>
 
+/* in order to save flash space, we declare below definition here.
+ * please modify it if you need below function */
+#define __HAVE_ARCH_STRNICMP
+#define __HAVE_ARCH_STRNICMP
+#define __HAVE_ARCH_STRCPY
+#define __HAVE_ARCH_STRNCPY
+#define __HAVE_ARCH_STRCAT
+#define __HAVE_ARCH_STRNCAT
+#define __HAVE_ARCH_STRCMP
+#define __HAVE_ARCH_STRNCMP
+#define __HAVE_ARCH_STRDUP
+#define __HAVE_ARCH_STRSPN
+#define __HAVE_ARCH_STRPBRK
+#define __HAVE_ARCH_STRTOK
+#define __HAVE_ARCH_STRSEP
+#define __HAVE_ARCH_STRSWAB
+#define __HAVE_ARCH_BCOPY
+#define __HAVE_ARCH_MEMSCAN
+#define __HAVE_ARCH_STRSTR
+#define __HAVE_ARCH_MEMCHR
 
 #ifndef __HAVE_ARCH_STRNICMP
 /**

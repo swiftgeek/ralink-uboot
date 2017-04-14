@@ -34,6 +34,10 @@
 #include <command.h>
 #include <ide.h>
 #include "part_dos.h"
+#include <fat.h>
+
+//#define DD printf("%s %d\n", __FUNCTION__, __LINE__);
+#define DD
 
 #if ((CONFIG_COMMANDS & CFG_CMD_IDE)	|| \
      (CONFIG_COMMANDS & CFG_CMD_SCSI)	|| \
@@ -181,6 +185,22 @@ static int get_partition_info_extended (block_dev_desc_t *dev_desc, int ext_part
 
 	/* Print all primary/logical partitions */
 	pt = (dos_partition_t *) (buffer + DOS_PART_TBL_OFFSET);
+
+	/* MTK/Ralink 2012/06/28 -- if no partition table in USB storage first sector */
+	if(pt->boot_ind != 0x80 && pt->boot_ind != 0x0){
+		boot_sector *bs;
+		printf ("It seems no partition tables existed.\n");
+		bs = (boot_sector *) (buffer);
+		if(ext_part_sector == 0 && bs->reserved && bs->fats){
+			info->blksz = 512;
+			info->start = ext_part_sector + 0;
+	                //FIXME: how to determine info->size? from FAT struct?
+			//info->size  = FAT2CPU32(bs->total_sect);
+			return 0;
+		}else
+			return -1;
+	}
+
 	for (i = 0; i < 4; i++, pt++) {
 		/*
 		 * fdisk does not show the extended partitions that

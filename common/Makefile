@@ -27,10 +27,19 @@ LIB	= libcommon.a
 
 AOBJS	=
 
+ifeq ($(RALINK_CMDLINE),ON)
 COBJS	= main.o cmd_bdinfo.o cmd_boot.o cmd_bootm.o cmd_console.o \
-	cmd_load.o cmd_misc.o cmd_net.o \
+	cmd_load.o cmd_misc.o cmd_net.o cmd_mem.o \
 	cmd_nvedit.o command.o console.o devices.o dlmalloc.o \
 	env_common.o exports.o lists.o  
+else
+COBJS = console.o devices.o dlmalloc.o \
+	env_common.o exports.o lists.o cmd_nvedit.o cmd_bootm.o cmd_net.o
+endif
+
+ifeq ($(RALINK_UPGRADE_BY_SERIAL),ON)
+COBJS += cmd_load.o
+endif
 
 ifdef RALINK_USB
 COBJS += usb.o usb_storage.o cmd_usb.o cmd_fat.o
@@ -39,13 +48,13 @@ endif
 OBJS	= $(AOBJS) $(COBJS)
 
 ifeq ($(CFG_ENV_IS), IN_FLASH)
-OBJS	+= cmd_flash.o cmd_mem.o env_flash.o flash.o
+OBJS	+= cmd_flash.o env_flash.o flash.o cmd_mem.o
 endif
 ifeq ($(CFG_ENV_IS), IN_SPI)
-OBJS	+= env_spi.o cmd_mem.o
+OBJS	+= env_spi.o
 endif
 ifeq ($(CFG_ENV_IS), IN_NAND)
-OBJS	+= env_nand.o cmd_mem.o
+OBJS	+= env_nand.o
 endif
 
 CPPFLAGS += -I..

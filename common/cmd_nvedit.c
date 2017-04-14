@@ -93,7 +93,7 @@ static const unsigned long baudrate_table[] = CFG_BAUDRATE_TABLE;
 /************************************************************************
  * Command interface: print one or all environment variables
  */
-
+#ifdef RALINK_CMDLINE
 int do_printenv (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 	int i, j, k, nxt;
@@ -145,6 +145,7 @@ int do_printenv (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 	}
 	return rcode;
 }
+#endif // RALINK_CMDLINE //
 
 /************************************************************************
  * Set a new environment variable,
@@ -250,7 +251,12 @@ int _do_setenv (int flag, int argc, char *argv[])
 			gd->bd->bi_baudrate = baudrate;
 #endif
 
+#if defined(RT6855A_ASIC_BOARD) || defined(RT6855A_FPGA_BOARD)
+			bbu_uart_init();
+#else
 			serial_setbrg ();
+#endif
+
 			udelay(50000);
 			for (;;) {
 				if (getc() == '\r')
@@ -572,6 +578,7 @@ int getenv_r (uchar *name, uchar *buf, unsigned len)
 }
 #endif
 
+#ifdef RALINK_CMDLINE
 #if defined(CFG_ENV_IS_IN_NVRAM) || defined(CFG_ENV_IS_IN_EEPROM) || \
     ((CONFIG_COMMANDS & (CFG_CMD_ENV|CFG_CMD_FLASH)) == \
       (CFG_CMD_ENV|CFG_CMD_FLASH))
@@ -583,10 +590,8 @@ int do_saveenv (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 
 	return (saveenv() ? 1 : 0);
 }
-
-
 #endif
-
+#endif // RALINK_CMDLINE //
 
 /************************************************************************
  * Match a name / name=value pair
@@ -595,7 +600,6 @@ int do_saveenv (cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
  * i2 is the environment index for a 'name2=value2' pair.
  * If the names match, return the index for the value2, else NULL.
  */
-
 static int
 envmatch (uchar *s1, int i2)
 {
@@ -609,6 +613,7 @@ envmatch (uchar *s1, int i2)
 }
 
 
+#ifdef RALINK_CMDLINE
 /**************************************************/
 
 U_BOOT_CMD(
@@ -637,6 +642,7 @@ U_BOOT_CMD(
 	NULL
 );
 
+#endif
 #endif	/* CFG_CMD_ENV */
 
 #if (CONFIG_COMMANDS & CFG_CMD_ASKENV)

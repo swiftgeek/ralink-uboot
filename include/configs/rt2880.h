@@ -28,10 +28,8 @@
 #ifndef __CONFIG_H
 #define __CONFIG_H
 
-
-#define DEBUG				1
+//#define DEBUG				1
 //#define ET_DEBUG
-
 #define CONFIG_RT2880_ETH		1	/* Enable built-in 10/100 Ethernet */
 
 #define CONFIG_MIPS32		1	/* MIPS 4Kc CPU core	*/
@@ -39,8 +37,8 @@
 #if defined (RT3052_FPGA_BOARD) || defined (RT3352_FPGA_BOARD) || \
     defined (RT2883_FPGA_BOARD) || defined (RT3883_FPGA_BOARD) || \
     defined (RT5350_FPGA_BOARD) || defined (RT6855_FPGA_BOARD) || \
-    defined (RT6352_FPGA_BOARD) || defined (RT71100_FPGA_BOARD) || \
-    defined (RT63365_FPGA_BOARD)
+    defined (MT7620_FPGA_BOARD) || defined (MT7621_FPGA_BOARD) || \
+    defined (RT6855A_FPGA_BOARD)
 #define FPGA_BOARD_CLOCK_RATE 40000000
 #else
 #define FPGA_BOARD_CLOCK_RATE 25000000
@@ -57,16 +55,18 @@
 #define CPU_CLOCK_RATE	384000000 
 #elif defined (RT3352_ASIC_BOARD)
 #define CPU_CLOCK_RATE	400000000 
-#elif defined (RT6855_ASIC_BOARD) || defined (RT63365_ASIC_BOARD)
+#elif defined (RT6855_ASIC_BOARD) || defined (RT6855A_ASIC_BOARD)
 #define CPU_CLOCK_RATE	500000000 
-#elif defined (RT6352_ASIC_BOARD)
-#define CPU_CLOCK_RATE	400000000 
-#elif defined (RT71100_ASIC_BOARD)
+#elif defined (MT7620_ASIC_BOARD)
+#define CPU_CLOCK_RATE	600000000 
+#elif defined (MT7621_ASIC_BOARD)
 #define CPU_CLOCK_RATE	400000000 
 #elif defined (RT2883_ASIC_BOARD)
 #define CPU_CLOCK_RATE	400000000 
 #elif defined (RT3883_ASIC_BOARD)
 #define CPU_CLOCK_RATE	500000000 
+#elif defined (RT5350_ASIC_BOARD)
+#define CPU_CLOCK_RATE	360000000 
 #else
 #define CPU_CLOCK_RATE	FPGA_BOARD_CLOCK_RATE /* default: 150 MHz clock for the MIPS core */
 #endif
@@ -85,31 +85,10 @@
 /* valid baudrates */
 #define CFG_BAUDRATE_TABLE	{ 9600, 19200, 38400, 57600, 115200 }
 
-#define	CONFIG_TIMESTAMP		/* Print image info with timestamp */
+//#define	CONFIG_TIMESTAMP		/* Print image info with timestamp */
 
 #undef	CONFIG_BOOTARGS
 
-#define	CONFIG_EXTRA_ENV_SETTINGS					\
-	"ramargs=setenv bootargs root=/dev/ram rw\0"			\
-	"addip=setenv bootargs $(bootargs) "				\
-		"ip=$(ipaddr):$(serverip):$(gatewayip):$(netmask)"	\
-		":$(hostname):$(netdev):off\0"				\
-	"addmisc=setenv bootargs $(bootargs) "				\
-		"console=ttyS0,$(baudrate) "				\
-		"ethaddr=$(ethaddr) "					\
-		"panic=1\0"						\
-	"flash_self=run ramargs addip addmisc;"				\
-		"bootm $(kernel_addr) $(ramdisk_addr)\0"		\
-	"kernel_addr=BFC40000\0"					\
-	"u-boot=u-boot.bin\0"				\
-	"load=tftp 8A100000 $(u-boot)\0"				\
-	"u_b=protect off 1:0-1;era 1:0-1;"				\
-		"cp.b 8A100000 BC400000 $(filesize)\0"			\
-	"loadfs=tftp 8A100000 root.cramfs\0"				\
-	"u_fs=era bc540000 bc83ffff;"				\
-		"cp.b 8A100000 BC540000 $(filesize)\0"			\
-	"test_tftp=tftp 8A100000 root.cramfs;run test_tftp\0"				\
-	""
 #define CONFIG_BOOTCOMMAND	"tftp" //"run flash_self"
 
 
@@ -134,12 +113,12 @@
 #define	CFG_PROMPT		"RT5350 # "
 #elif defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) 
 #define	CFG_PROMPT		"RT6855 # "
-#elif defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) 
-#define	CFG_PROMPT		"RT63365 # "
-#elif defined (RT6352_FPGA_BOARD) || defined (RT6352_ASIC_BOARD) 
-#define	CFG_PROMPT		"RT6352 # "
-#elif defined (RT71100_FPGA_BOARD) || defined (RT71100_ASIC_BOARD) 
-#define	CFG_PROMPT		"RT71100 # "
+#elif defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD) 
+#define	CFG_PROMPT		"RT6855A # "
+#elif defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD) 
+#define	CFG_PROMPT		"MT7620 # "
+#elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) 
+#define	CFG_PROMPT		"MT7621 # "
 #else
 #define	CFG_PROMPT		"RTxxxx # "
 #endif
@@ -174,10 +153,10 @@
 #else
 #define	CFG_LOAD_ADDR		0x80100000	/* default load address	*/
 #define CFG_HTTP_DL_ADDR	0x80300000
-#if defined(RT63365_FPGA_BOARD) || defined(RT63365_ASIC_BOARD)
+#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7620_ASIC_BOARD)
 #define CFG_SPINAND_LOAD_ADDR	0x80c00000
 #else
-#define CFG_SPINAND_LOAD_ADDR	0x80300000
+#define CFG_SPINAND_LOAD_ADDR	0x80500000
 #endif
 
 #define CFG_MEMTEST_START	0x80100000
@@ -236,8 +215,8 @@
       defined (RT3352_FPGA_BOARD) || defined (RT3352_ASIC_BOARD) || \
       defined (RT5350_FPGA_BOARD) || defined (RT5350_ASIC_BOARD) || \
       defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) || \
-      defined (RT6352_FPGA_BOARD) || defined (RT6352_ASIC_BOARD) || \
-      defined (RT71100_FPGA_BOARD) || defined (RT71100_ASIC_BOARD)
+      defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD) || \
+      defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD)
 #define PHYS_FLASH_START	0xBC000000 /* Flash Bank #2 */
 #define PHYS_FLASH_1		0xBC000000 /* Flash Bank #1 */
   #ifdef DUAL_IMAGE_SUPPORT
@@ -280,7 +259,7 @@
   #define CFG_MAX_FLASH_BANKS	2
   #endif
  #endif
-#elif defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD)
+#elif defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD)
 #define PHYS_FLASH_1		0xB0000000
 #endif // defined (RT2880_FPGA_BOARD) || defined (RT2880_ASIC_BOARD)
 
@@ -312,9 +291,16 @@
 #define CFG_KERN_ADDR		(CFG_FLASH_BASE + CFG_BOOTLOADER_SIZE)
 #define CFG_KERN2_ADDR		(CFG_FLASH2_BASE + CFG_BOOTLOADER_SIZE)
 #else
+#if defined(SMALL_UBOOT_PARTITION)
+#define CFG_BOOTLOADER_SIZE	0x20000
+#define CFG_CONFIG_SIZE		0x10000
+#define CFG_FACTORY_SIZE	0x00000
+#else
 #define CFG_BOOTLOADER_SIZE	0x30000
 #define CFG_CONFIG_SIZE		0x10000
 #define CFG_FACTORY_SIZE	0x10000
+#endif
+
 #define CFG_ENV_ADDR		(CFG_FLASH_BASE + CFG_BOOTLOADER_SIZE)
 #define CFG_FACTORY_ADDR	(CFG_FLASH_BASE + CFG_BOOTLOADER_SIZE + CFG_CONFIG_SIZE)
 #define CFG_KERN_ADDR		(CFG_FLASH_BASE + (CFG_BOOTLOADER_SIZE + CFG_CONFIG_SIZE + CFG_FACTORY_SIZE))
@@ -325,6 +311,15 @@
 
 #define CFG_ENV_SECT_SIZE	CFG_CONFIG_SIZE
 #define CFG_ENV_SIZE		0x1000
+
+#if defined(SMALL_UBOOT_PARTITION)
+#define CFG_UBOOT_SECT_SIZE	CFG_BOOTLOADER_SIZE
+#define CFG_UBOOT_SIZE		0x19000 // must <= CFG_FACTORY_ADDR
+#define CFG_RF_PARAM_SIZE	0x800
+#undef CFG_FACTORY_ADDR
+#define CFG_FACTORY_ADDR	(CFG_BOOTLOADER_SIZE - (2 * CFG_RF_PARAM_SIZE))
+#define CFG_FACTORY_ADDR2	(CFG_BOOTLOADER_SIZE - CFG_RF_PARAM_SIZE)
+#endif
 
 #if defined (DUAL_IMAGE_SUPPORT)
 #if defined (ON_BOARD_2M_FLASH_COMPONENT)
@@ -352,12 +347,8 @@
 #define CONFIG_FLASH_16BIT
 
 #define CONFIG_NR_DRAM_BANKS	1
-
-#define CONFIG_NET_MULTI
+//#define CONFIG_NET_MULTI
 #define CFG_RX_ETH_BUFFER		60
-
-//#define CFG_JFFS2_FIRST_BANK	1
-//#define CFG_JFFS2_NUM_BANKS		1
 
 /*-----------------------------------------------------------------------
  * Cache Configuration
@@ -365,10 +356,6 @@
 #define CFG_DCACHE_SIZE		(16*1024)
 #define CFG_ICACHE_SIZE		(16*1024)
 #define CFG_CACHELINE_SIZE	16
-
-
-#define CONFIG_LZMA		1
-
 
 #define RT2880_REGS_BASE			0xA0000000
 
@@ -383,7 +370,7 @@
  *   0x60  -- GPIOMODE		GPIO Mode Control Register 
  */
 #define RT2880_SYS_CNTL_BASE			(RALINK_SYSCTL_BASE)
-#if defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD)
+#if defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD)
 #define RT2880_SYSCFG_REG                       (RT2880_SYS_CNTL_BASE+0x8c)
 #define RT2880_RSTCTRL_REG                      (RT2880_SYS_CNTL_BASE+0x834)
 #define RT2880_RSTSTAT_REG                      (RT2880_SYS_CNTL_BASE+0x38)
@@ -394,6 +381,7 @@
 #define RT2880_CLKCFG1_REG			(RT2880_SYS_CNTL_BASE+0x30)
 #define RT2880_RSTCTRL_REG			(RT2880_SYS_CNTL_BASE+0x34)
 #define RT2880_RSTSTAT_REG			(RT2880_SYS_CNTL_BASE+0x38)
+#define RT2880_SYSCLKCFG_REG  		(RT2880_SYS_CNTL_BASE+0x3c)
 #define RT2880_GPIOMODE_REG			(RT2880_SYS_CNTL_BASE+0x60)
 #endif
 
@@ -406,7 +394,7 @@
 #define RT2880_REG_PIODIR       (RT2880_PRGIO_ADDR + 0x24)
 
 #define RALINK_REG(x)		(*((volatile u32 *)(x)))	
-#if defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD)
+#if defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD)
 #define ra_inb(offset)		(*(volatile unsigned char *)(offset))
 #define ra_inw(offset)		(*(volatile unsigned short *)(offset))
 #define ra_inl(offset)		(*(volatile unsigned long *)(offset))

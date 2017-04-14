@@ -35,7 +35,6 @@
 
 #include "ehci.h"
 
-#define mdelay(n) ({unsigned long msec=(n); while (msec--) udelay(1000);})
 #define EHCI_virt_to_bus(x) virt_to_bus((volatile void *)(x))
 
 int rootdev;

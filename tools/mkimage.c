@@ -136,6 +136,7 @@ table_entry_t comp_name[] = {
     {	IH_COMP_BZIP2,	"bzip2",	"bzip2 compressed",	},
     {	IH_COMP_GZIP,	"gzip",		"gzip compressed",	},
     {	IH_COMP_LZMA,	"lzma",		"lzma compressed",	},
+    {	IH_COMP_XZ,	"xz",		"xz compressed",	},
     {	-1,		"",		"",			},
 };
 
@@ -612,26 +613,53 @@ NXTARG:		;
 	if(dram_size==0) { 
 	    hdr->ih_dram.dram_magic=0;
 	} else {
-#if defined(RT5350_ASIC_BOARD) || defined(RT5350_FPGA_BOARD)
-	    hdr->ih_dram.u.dram_magic_h=0x5;
-#elif defined(RT3352_ASIC_BOARD) || defined(RT3352_FPGA_BOARD)
-	    hdr->ih_dram.dram_magic=0x5A;
+#if defined (RT3352_ASIC_BOARD) || defined(RT3352_FPGA_BOARD) ||\
+		defined (RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD)
+		hdr->ih_dram.dram_magic=0x5A;
+#else
+		hdr->ih_dram.u.dram_magic_h=0x5;
 #endif
 	}
 
 	hdr->ih_dram.dram_parm = (dram_type<<5 | dram_total_width<<4 | dram_size<<1 | dram_width);
 
 	if(dram_cfg0!=0xFF && dram_cfg1!=0xFF) {
+
+#if defined (RT3052_ASIC_BOARD) || defined(RT3052_FPGA_BOARD) ||\
+	defined (RT3352_ASIC_BOARD) || defined(RT3352_FPGA_BOARD) ||\
+	defined (RT5350_ASIC_BOARD) || defined(RT5350_FPGA_BOARD) ||\
+	defined (RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD)
 	    hdr->ih_dram.magic_lh=0x5244;
 	    hdr->ih_dram.magic_hh=0x4D41;
+#else
+		hdr->ih_dram.magic = 0x68;
+#endif		
 	} else {
+#if defined(RT3052_ASIC_BOARD) || defined(RT3052_FPGA_BOARD) ||\
+	defined(RT3352_ASIC_BOARD) || defined(RT3352_FPGA_BOARD) ||\
+	defined(RT5350_ASIC_BOARD) || defined(RT5350_FPGA_BOARD) ||\
+	defined(RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD)
 	    hdr->ih_dram.magic_lh=0;
 	    hdr->ih_dram.magic_hh=0;
+#else
+		hdr->ih_dram.magic = 0x0;
+#endif		
 	    dram_cfg0=0;
 	    dram_cfg1=0;
 	}
 
 #if defined (CPU_PLL_PARAMETERS)
+#if defined (RT6855A_ASIC_BOARD) || defined(RT6855A_FPGA_BOARD)
+#endif
+#if defined (MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD)
+#if defined (CPLL_FROM_480MHZ)
+	cpu_pll = ntohs(1<<11);
+#elif defined (CPLL_FROM_XTAL)
+	cpu_pll = ntohs(1<<12);
+#else
+	cpu_pll = ntohs((CPLL_MULTI_RATIO_CFG<<8)|(CPLL_DIV_RATIO_CFG<<6)|(CPLL_SSC_CFG<<0));
+#endif
+#endif
 	if(cpu_pll==0) {
 		hdr->ih_dram.u.cpu_pll_magic_l=0;
 		hdr->ih_dram.cpu_pll_cfg = 0;
@@ -642,6 +670,10 @@ NXTARG:		;
 #endif
 
 #if defined (DRAM_PARAMETERS)
+#if defined (RT3052_ASIC_BOARD) || defined(RT3052_FPGA_BOARD) ||\
+	defined (RT3352_ASIC_BOARD) || defined(RT3352_FPGA_BOARD) ||\
+	defined (RT5350_ASIC_BOARD) || defined(RT5350_FPGA_BOARD) ||\
+	defined (RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD)	
 	if(dram_type==0) {//SDR
 	    hdr->ih_dram.sdr.sdram_cfg0 = dram_cfg0;
 	    hdr->ih_dram.sdr.sdram_cfg1 = dram_cfg1;
@@ -649,6 +681,32 @@ NXTARG:		;
 	    hdr->ih_dram.ddr.syscfg1= (dram_cfg0 & 0x3F);
 	    hdr->ih_dram.ddr.ddr_cfg3= (dram_cfg1 & 0x3);
 	}
+#elif defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD) ||\
+	defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
+	if(dram_type==0) {//SDR
+	    hdr->ih_dram.sdr.sdram_cfg0 = ntohl(dram_cfg0);
+	    hdr->ih_dram.sdr.sdram_cfg1 = ntohl(dram_cfg1);
+	}else { //DDR
+#if defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD)
+			hdr->ih_dram.ddr_cfg2 = ntohl(DDR_CFG2_SETTING);
+			hdr->ih_dram.ddr_cfg3 = ntohl(DDR_CFG3_SETTING);
+			hdr->ih_dram.ddr_cfg4 = ntohl(DDR_CFG4_SETTING);
+			hdr->ih_dram.dram_pad_setting = ntohl(DRAM_PAD_SETTING);
+#endif
+			hdr->ih_dram.ddr.ddr_cfg0 = ntohl(dram_cfg0);
+			hdr->ih_dram.ddr.ddr_cfg1 = ntohl(dram_cfg1);
+#if defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
+			hdr->ih_dram.ddr_self_refresh = ntohs((((DDR_ODT_SRC&0x0F)<<8)|(DDR_ODT_OFF_DLY&0x0F)<<4)|\
+											(DDR_ODT_ON_DLY&0x0F)); 
+			hdr->ih_dram.syscfg1_ddrcfg3_odt = ntohs((SYSCFG1_ODT&0x0FFFC)|(DDRCFG3_ODT&0x03));   
+			hdr->ih_dram.ddr_cfg11 = ntohs(((DDR_CFG2_CAS&0x7)<<13)|(DDR_CFG11_FFD_EN<<12)|(DDR_CFG11_FCD_EN<<11)|\
+								((DDR_CFG11_FFD&0x0F)<<7)|(DDR_CFG11_FCD&0x7F));
+			hdr->ih_dram.ddr_cfg10 = ntohl(((DDR_CFG3_DS&0x1)<<31)|DDR_CFG10_SETTING&(~((1<<31)|(1<<23)|(1<<15)|(1<<7))));
+#endif
+	}
+#else
+#error "DRAM config in imageheader is not supported"	
+#endif	
 #endif
 
 	checksum = crc32(0,(const char *)hdr,sizeof(image_header_t));

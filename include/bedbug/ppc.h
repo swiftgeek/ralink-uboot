@@ -1,4 +1,4 @@
-/* $Id: ppc.h,v 1.1.1.1 2006-05-22 09:48:46 yjlin Exp $ */
+/* $Id: //WIFI_SOC/release/SDK_4_1_0_0/Uboot/include/bedbug/ppc.h#1 $ */
 
 #ifndef _PPC_H
 #define _PPC_H

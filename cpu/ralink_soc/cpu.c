@@ -27,7 +27,7 @@
 #include <rt_mmap.h>
 
 
-#if defined(RT63365_FPGA_BOARD) || defined(RT63365_ASIC_BOARD)
+#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD)
 int do_reset(cmd_tbl_t *cmdtp, int flag, int argc, char *argv[])
 {
 	ra_outl(RALINK_TIMER_BASE + 0x2c, 0x1);		//timer3 load value

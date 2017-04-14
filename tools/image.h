@@ -24,6 +24,8 @@
 #ifndef __IMAGE_H__
 #define __IMAGE_H__
 
+#include "../autoconf.h"
+
 /*
  * Operating System Codes
  */
@@ -124,16 +126,33 @@
 #define IH_COMP_GZIP		1	/* gzip	 Compression Used	*/
 #define IH_COMP_BZIP2		2	/* bzip2 Compression Used	*/
 #define IH_COMP_LZMA		3	/* lzma  Compression Used	*/
+#define IH_COMP_XZ		5	/* xz    Compression Used	*/
 
 #define IH_MAGIC	0x27051956	/* Image Magic Number		*/
+#if defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
+#define IH_NMLEN		(16-4*2)	/* Image Name Length		*/
+#elif defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD)
+#define IH_NMLEN		(16-4*4)
+#else
 #define IH_NMLEN		16	/* Image Name Length		*/
-
+#endif
 /*
  * all data in network byte order (aka natural aka bigendian)
  */
 
 
-typedef struct dram_header {
+typedef struct  __attribute__ ((packed)) dram_header {
+#if defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD)
+	uint16_t	ddr_self_refresh;
+	uint16_t	ddr_cfg11;
+	uint32_t	ddr_cfg10;
+#endif
+#if defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD)
+	uint32_t	dram_pad_setting;
+	uint32_t	ddr_cfg2;
+	uint32_t	ddr_cfg3;
+	uint32_t	ddr_cfg4;
+#endif
 	uint8_t		dram_parm;	/* DRAM setting */
 	union{
 	uint8_t		dram_magic;	/* Magic number of DRAM setting (0x5a) */
@@ -143,6 +162,10 @@ typedef struct dram_header {
 		}u;
 	};
 	uint16_t	cpu_pll_cfg;
+#if defined(RT3052_ASIC_BOARD) || defined(RT3052_FPGA_BOARD) ||\
+	defined(RT3352_ASIC_BOARD) || defined(RT3352_FPGA_BOARD) ||\
+	defined(RT5350_ASIC_BOARD) || defined(RT5350_FPGA_BOARD) ||\
+	defined(RT3883_ASIC_BOARD) || defined(RT3883_FPGA_BOARD)
 	uint16_t	magic_lh;       /* low half word of magic number 0x5244 */
 	uint16_t	magic_hh;       /* high half word of magic number 0x4D41 */
 	union {
@@ -158,6 +181,25 @@ typedef struct dram_header {
 		uint32_t sdram_cfg1;
 	    }sdr;
 	};
+#else
+	uint8_t		magic;       /* magic number 0x68 */
+#if defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD)
+	uint8_t		rsvd0[3];
+#else
+	uint8_t		reservd;
+	uint16_t	syscfg1_ddrcfg3_odt;
+#endif	
+	union {
+		struct {
+		uint32_t ddr_cfg0;
+		uint32_t ddr_cfg1;
+		}ddr;		
+		struct {
+		uint32_t sdram_cfg0;
+		uint32_t sdram_cfg1;
+		}sdr;
+	};
+#endif
 } dram_header_t;
 
 typedef struct image_header {

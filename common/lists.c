@@ -215,12 +215,14 @@ list_t ListCreate (int elementSize)
 
 /*******************************/
 
+#ifdef	CFG_ALL_LIST_FUNCTIONS
 void ListSetAllocationPolicy (list_t list, int minItemsPerAlloc,
 			      int percentIncreasePerAlloc)
 {
 	(*list)->percentIncrease = percentIncreasePerAlloc;
 	(*list)->minNumItemsIncrease = minItemsPerAlloc;
 }
+#endif
 
 /*******************************/
 
@@ -506,6 +508,7 @@ void ListRemoveItems (list_t list, void *itemsDestination,
 
 /*******************************/
 
+#ifdef CFG_ALL_LIST_FUNCTIONS
 void ListGetItems (list_t list, void *itemsDestination,
 		   int firstItemPosition, int numItemsToGet)
 {
@@ -519,6 +522,7 @@ void ListGetItems (list_t list, void *itemsDestination,
 		ITEMPTR (list, firstItemPosition - 1),
 		(*list)->itemSize * numItemsToGet);
 }
+#endif
 
 /*******************************/
 
@@ -538,6 +542,7 @@ void *ListGetPtrToItem (list_t list, int itemPosition)
 
 /*******************************/
 
+#ifdef CFG_ALL_LIST_FUNCTIONS
 /*
  * returns a pointer the lists data (abstraction violation for
  * optimization)
@@ -548,6 +553,7 @@ void *ListGetDataPtr (list_t list)
 }
 
 /********************************/
+#endif
 
 #ifdef	CFG_ALL_LIST_FUNCTIONS
 
@@ -588,12 +594,14 @@ Error:
 
 /********************************/
 
+#ifdef CFG_ALL_LIST_FUNCTIONS
 int ListGetItemSize (list_t list)
 {
 	return (*list)->itemSize;
 }
 
 /********************************/
+#endif
 
 int ListNumItems (list_t list)
 {

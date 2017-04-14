@@ -21,36 +21,45 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
  * MA 02111-1307 USA
  */
-
+#include "../../autoconf.h"
 #include <config.h>
 #include <version.h>
 #include <asm/regdef.h>
 #include <asm/mipsregs.h>
 #include <rt_mmap.h>
 
-#if defined(RT63365_FPGA_BOARD) || defined(RT63365_ASIC_BOARD)
+#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD)
 #define SDRAM_CFG0_REG RALINK_MEMCTRL_BASE+ 0x0
 #define SDRAM_CFG1_REG RALINK_MEMCTRL_BASE+ 0x4
 #else
-#define SDRAM_CFG0_REG RALINK_SYSCTL_BASE + 0x0300
-#define SDRAM_CFG1_REG RALINK_SYSCTL_BASE + 0x0304
+#define SDRAM_CFG0_REG 					RALINK_SYSCTL_BASE + 0x0300
+#define SDRAM_CFG1_REG 					RALINK_SYSCTL_BASE + 0x0304
+#define RALINK_DDR_CFG0					(RALINK_MEMCTRL_BASE+0x40)
+#define RALINK_DDR_CFG1					(RALINK_MEMCTRL_BASE+0x44)
+#define RALINK_DDR_CFG2					(RALINK_MEMCTRL_BASE+0x48)
+#define RALINK_DDR_CFG3					(RALINK_MEMCTRL_BASE+0x4c)
+#define RALINK_DDR_CFG4					(RALINK_MEMCTRL_BASE+0x50)
+#define RALINK_DDR_CFG10				(RALINK_MEMCTRL_BASE+0x68)
 #endif
 #define SDRAM_CFG0_ALWAYS_ONE ( 1 << 31)
 #define SDRAM_CFG1_SDRAM_INIT_START ( 1 << 31)
 #define SDRAM_CFG1_SDRAM_INIT_DONE ( 1 << 30)
-#if defined(RT63365_FPGA_BOARD) || defined(RT63365_ASIC_BOARD)
+#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7620_ASIC_BOARD)
 #define SDRAM_CFG0_MIPSREG		s7
 #define SDRAM_CFG1_MIPSREG		s8
 
 #define DDR_CFG0_MIPSREG		s7
 #define DDR_CFG1_MIPSREG		s8
 #endif
-#if defined(RT63365_FPGA_BOARD) || defined(RT63365_ASIC_BOARD)
+#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD)
 #define DELAY_USEC(us)				((700*(us))/3)
+#elif defined(MT7620_FPGA_BOARD) || defined(MT7620_ASIC_BOARD)
+#define DELAY_USEC(us)              ((60*(us))/4)
 #else
 #define DELAY_USEC(us)				((500*(us))/3)
 #endif
 
+#define CPLL_DEFAULT_CFG		0x507
 #define RVECENT(f,n) \
    b f; nop
 #define XVECENT(f,bev) \
@@ -235,9 +244,9 @@ reset:
     defined (RT5350_FPGA_BOARD) || defined (RT5350_ASIC_BOARD) || \
     defined (RT3883_FPGA_BOARD) || defined (RT3883_ASIC_BOARD) || \
     defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) || \
-    defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) || \
-    defined (RT6352_FPGA_BOARD) || defined (RT6352_ASIC_BOARD) || \
-    defined (RT71100_FPGA_BOARD) || defined (RT71100_ASIC_BOARD)
+    defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD) || \
+    defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD) || \
+    defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD)
 	# Initialize the register file
 	# should not be required with good software practices
 	or	$1,$0, $0
@@ -532,7 +541,7 @@ reset:
         sw      t1, 0(t0)
         nop
 #endif
-#if defined(RT63365_ASIC_BOARD) || defined(RT63365_FPGA_BOARD)
+#if defined(RT6855A_ASIC_BOARD) || defined(RT6855A_FPGA_BOARD)
 	la              t0, RALINK_SYSCTL_BASE + 0x8C
 	lw              t1, 0(t0)
 	nop
@@ -540,7 +549,7 @@ reset:
 	andi            t2, t2, 0x1
 	bnez            t2, 1f
 	nop
-	bal		rt63365_cpu_pll	
+	bal		rt6855A_cpu_pll	
 	nop
 1:
 
@@ -556,8 +565,45 @@ reset:
 	sw			t1, 0(t0)
 	nop
 #endif
+
 #if (TEXT_BASE == 0xBFC00000) || (TEXT_BASE == 0xBF000000) || (TEXT_BASE == 0xBC000000)
- 
+#if defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD)
+	/* warm reset will skip CPU PLL CONFIG */
+	la      t0, RALINK_SYSCTL_BASE+0x38
+	lw      t1, 0(t0)
+	srl     t1, t1, 1
+	andi    t1, t1, 0x3
+	bnez    t1, CPLL_DONE
+	nop
+#if defined(CPLL_FROM_480MHZ)
+	li      a0, 1<<11
+#elif defined(CPLL_FROM_XTAL)
+	li      a0, 1<<12
+#elif defined(CPLL_FROM_CONF)
+	li      a0, CPLL_MULTI_RATIO_CFG
+	sll     a0, a0, 2
+	ori     a0, a0, CPLL_DIV_RATIO_CFG
+	sll     a0, a0, 6
+	ori     a0, a0, CPLL_SSC_CFG
+#endif
+#if (defined(CPLL_FROM_480MHZ)||defined(CPLL_FROM_XTAL)||defined(CPLL_FROM_CONF))
+	bal     init_cpu_pll
+	nop
+#else
+	la      t0, RALINK_SYSCTL_BASE+0x10
+	lw      t1, 0(t0)
+	srl     t1, t1, 4
+	andi    t1, t1, 0x3
+	beqz    t1, CPLL_DONE
+	addiu   t2, zero, 3
+	beq     t1, t2, CPLL_DONE
+	li      a0, CPLL_DEFAULT_CFG
+	bal     init_cpu_pll
+	nop
+#endif
+CPLL_DONE:
+#endif
+
 	/* SDR and DDR initialization: delay 200us
 	 */
 	li t0, DELAY_USEC(200+40)
@@ -571,11 +617,20 @@ reset:
         
 
 #if defined(RT6855_FPGA_BOARD)||defined(RT6855_ASIC_BOARD) || \
-    defined(RT6352_FPGA_BOARD)||defined(RT6352_ASIC_BOARD) || \
-    defined(RT71100_FPGA_BOARD)||defined(RT71100_ASIC_BOARD)
+    defined(MT7620_FPGA_BOARD)||defined(MT7620_ASIC_BOARD) || \
+    defined(MT7621_FPGA_BOARD)||defined(MT7621_ASIC_BOARD)
 
 	/* Use default SYSCFG1 setting */
-#elif defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD)
+#if defined(MT7620_FPGA_BOARD) || defined(MT7620_ASIC_BOARD)
+	li t1, RALINK_SYSCTL_BASE + 0x14
+    lw t2, 0(t1)
+    nop
+    and t2, ~(0x0FFF<<16)
+    or t2, (0x260<<16)
+    sw t2, 0(t1)
+    nop
+#endif
+#elif defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD)
 	/* set DRAM IO PAD for DDR2 */
 #if defined(ON_BOARD_DDR2)
 
@@ -587,12 +642,20 @@ reset:
 	sw t1, 0(t0)
 	nop
 #endif
+/*ODT ON*/
+#if 1 
+	la t0, RALINK_SYSCTL_BASE + 0x4
+	lw t1, 0(t0)
+	li t1, 0x000cc0d4
+	sw t1, 0(t0)
+	nop
+#endif
 
 #endif	
 #else
 	/* DDR initialization: reg SYSCFG1[25:16]: 
 	 * ODT disabled, LVCMOS=1, half drive, turn ON RT3662 DDR IO ODT as 150 ohm when read DRAM
-	 */
+	 */	
 	li t1, RALINK_SYSCTL_BASE + 0x14
 	lw t2, 0(t1)
 	nop
@@ -600,18 +663,19 @@ reset:
 	or t2, (0x361<<16)
 	sw t2, 0(t1)
 	nop
-#endif
+#endif	
+
 	/* DDR initialization: reset pin to 0
 	 */
-#if defined(RT63365_FPGA_BOARD) || defined(RT63365_ASIC_BOARD)
+#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD)
 	li t1, RALINK_SYSCTL_BASE + 0x40
-#else
+#else	
 	li t1, RALINK_SYSCTL_BASE + 0x34
 #endif
 	sw zero, 0(t1)
 	nop
 
-#if defined(RT63365_FPGA_BOARD) || defined(RT63365_ASIC_BOARD)
+#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD)
 	li t0, DELAY_USEC(200+40)
 	li t1, 0x1
 1:
@@ -632,8 +696,8 @@ DDR_READY:
 	/* DDR initialization:
 	 */
 #if defined(RT6855_FPGA_BOARD)||defined(RT6855_ASIC_BOARD) || \
-    defined(RT6352_FPGA_BOARD)||defined(RT6352_ASIC_BOARD) || \
-    defined(RT71100_FPGA_BOARD)||defined(RT71100_ASIC_BOARD)
+    defined(MT7620_FPGA_BOARD)||defined(MT7620_ASIC_BOARD) || \
+    defined(MT7621_FPGA_BOARD)||defined(MT7621_ASIC_BOARD)
 	 /*   fpga/asic: reg DDR_CFG2 -- set bit[30]=0 as DDR1 mode when DDR1
 	  *   fpga/asic: reg DDR_CFG2 -- set bit[30]=1 as DDR2 mode when DDR2
 	  *   fpga/asic: reg DDR_CFG2 -- set bit[6:4]=3'b011 when DDR1
@@ -647,6 +711,9 @@ DDR_READY:
 	and t0, ~(7<<4)
 	or t0, (4<<4)
 	or t0, (1<<30)
+#if defined(MT7620_ASIC_BOARD)	
+	or t0, (1<<11)
+#endif	
 #elif ON_BOARD_DDR1
 	and t0, ~(7<<4)
 	or t0, (3<<4)
@@ -666,19 +733,22 @@ DDR_READY:
 	lw t2, 0(t1)
 #ifdef ON_BOARD_DDR2
 	#disable ODT; reference board ok, ev board fail
-	#and t2, ~(1<<6)
-
+#if defined(MT7620_ASIC_BOARD) 	
+	and t2, ~(1<<6)
+	or	t2, (1<<2)
+#else
 	#enable ODT; both ok
-	or t2, (1<<6)
+	or t2, (1<<6)	
 	and t2, ~(1<<2)
+#endif
 #elif ON_BOARD_DDR1
 	and t2, ~(1<<10)
 	and t2, ~(7<<3)
 #endif
-#if defined(RT3883_FPGA_BOARD) || defined(RT6855_FPGA_BOARD) || defined(RT6352_FPGA_BOARD) || defined(RT71100_FPGA_BOARD)
+#if defined(RT3883_FPGA_BOARD) || defined(RT6855_FPGA_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7621_FPGA_BOARD)
 	or t2, 0x1
 #endif
-#if !defined(RT63365_ASIC_BOARD)	
+#if (!defined(RT6855A_ASIC_BOARD) && !defined(MT7620_ASIC_BOARD))
 	sw t2, 0(t1)
 	nop
 #endif	
@@ -703,8 +773,26 @@ DDR_READY:
 	or	t1, (AdditiveLatency_VALUE<<AdditiveLatency_OFFSET)
 	sw	t1, 0(t0)
 #endif
-
-#if defined (RT3352_FPGA_BOARD) || defined (RT3883_FPGA_BOARD) || defined (RT6855_FPGA_BOARD) || defined(RT6352_FPGA_BOARD) || defined(RT71100_FPGA_BOARD)
+#if defined(MT7620_ASIC_BOARD)
+	li  t0, RALINK_MEMCTRL_BASE + 0x50
+	lw  t1, 0(t0)
+	li	t2, ~(0x01F|0x0F0)
+	and	t1, t1, t2
+#if ON_BOARD_DDR2
+#if defined (ON_BOARD_256M_DRAM_COMPONENT)
+	ori t1, t1, 7
+#elif defined (ON_BOARD_512M_DRAM_COMPONENT)
+	ori t1, t1, 9
+#elif defined (ON_BOARD_1024M_DRAM_COMPONENT)
+	ori t1, t1, 9
+#elif defined (ON_BOARD_2048M_DRAM_COMPONENT)
+	ori	t1, t1, 9
+#endif
+#endif
+	sw	t1, 0(t0)
+	nop
+#endif
+#if defined (RT3352_FPGA_BOARD) || defined (RT3883_FPGA_BOARD) || defined (RT6855_FPGA_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7621_FPGA_BOARD)
 	/* DDR initialization: DDR_CFG0 bit 12:0 (refresh interval) to 0x64
 	 * Note. this may have a bad affect on efficiency if the clock rate is 40MHz
 	 */
@@ -736,21 +824,21 @@ DDR_READY:
 	/* DDR initialization: config size and width on reg DDR_CFG1
 	 */
 #if defined(ON_BOARD_DDR2)
-#if defined (RT6855_ASIC_BOARD) || defined(RT6352_ASIC_BOARD) || defined(RT71100_ASIC_BOARD)
+#if defined (RT6855_ASIC_BOARD) || defined(MT7620_ASIC_BOARD) || defined(MT7621_ASIC_BOARD)
 #ifdef ON_BOARD_128M_DRAM_COMPONENT
-        li t6, 0x332A3525
+        li t6, 0x222A3323
 #elif defined (ON_BOARD_256M_DRAM_COMPONENT)
-        li t6, 0x222e2424
+        li t6, 0x222e2323
 #elif defined (ON_BOARD_512M_DRAM_COMPONENT)
-        li t6, 0x22322424 
+        li t6, 0x22322323 
 #elif defined (ON_BOARD_1024M_DRAM_COMPONENT)
-        li t6, 0x22362424
+        li t6, 0x22362323
 #elif defined (ON_BOARD_2048M_DRAM_COMPONENT)
-		li t6, 0x223a2424		
+		li t6, 0x223a2323		
 #else
         DRAM Component not defined
 #endif
-#elif defined (RT6855_FPGA_BOARD) || defined(RT6352_FPGA_BOARD) || defined(RT71100_FPGA_BOARD)
+#elif defined (RT6855_FPGA_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7621_FPGA_BOARD)
 #ifdef ON_BOARD_128M_DRAM_COMPONENT
         li t6, 0x122A3121
 #elif defined (ON_BOARD_256M_DRAM_COMPONENT)
@@ -761,7 +849,7 @@ DDR_READY:
         li t6, 0x12363121
 #endif
 
-#else /* RT3883 and RT3352 */
+#elif defined (RT3352_FPGA_BOARD) || defined(RT3883_FPGA_BOARD) || defined (RT3352_ASIC_BOARD) || defined(RT3883_ASIC_BOARD)
 #ifdef ON_BOARD_128M_DRAM_COMPONENT
 	li t6, 0x222A3323
 #elif defined (ON_BOARD_256M_DRAM_COMPONENT)
@@ -774,21 +862,23 @@ DDR_READY:
 	DRAM Component not defined
 #endif
 
+#else /* RT6855A setting in below lookup table*/
+
 #endif
 
 #elif defined(ON_BOARD_DDR1)
 
-#if defined(RT6855_ASIC_BOARD) || defined(RT6352_ASIC_BOARD) || defined(RT71100_ASIC_BOARD)
+#if defined(RT6855_ASIC_BOARD) || defined(MT7620_ASIC_BOARD) || defined(MT7621_ASIC_BOARD)
 #ifdef ON_BOARD_128M_DRAM_COMPONENT
-        li t6, 0x332A3525
+        li t6, 0x332A3434
 #elif defined (ON_BOARD_256M_DRAM_COMPONENT)
-        li t6, 0x332e2434
+        li t6, 0x222E2324	//use aggressive cfg //0x332e2434
 #elif defined (ON_BOARD_512M_DRAM_COMPONENT)
         li t6, 0x33322434
 #elif defined (ON_BOARD_1024M_DRAM_COMPONENT)
         li t6, 0x33362434
 #endif
-#elif defined(RT6855_FPGA_BOARD) || defined(RT6352_FPGA_BOARD) || defined(RT71100_FPGA_BOARD)
+#elif defined(RT6855_FPGA_BOARD) || defined(MT7620_FPGA_BOARD) || defined(MT7621_FPGA_BOARD)
 #ifdef ON_BOARD_128M_DRAM_COMPONENT
         li t6, 0x122A3111
 #elif defined (ON_BOARD_256M_DRAM_COMPONENT)
@@ -798,6 +888,9 @@ DDR_READY:
 #elif defined (ON_BOARD_1024M_DRAM_COMPONENT)
         li t6, 0x12363111
 #endif
+
+#else /* RT6855A setting in below lookup table*/
+
 #endif
 
 #endif /* end of setting DDR_CFG1 */
@@ -820,12 +913,16 @@ DDR_READY:
 #else
 	DRAM bus not defined
 #endif
-#if !defined(RT63365_ASIC_BOARD)	
+#if !defined(RT6855A_ASIC_BOARD) && !defined(MT7620_ASIC_BOARD)	
 	li t5, RALINK_MEMCTRL_BASE + 0x44
 	sw t6, 0(t5)
 	nop
-#else
-	/* RT63365 DDR configurations */
+	j SDRAM_INIT_DOWN
+	nop
+#endif
+
+#if defined(RT6855A_ASIC_BOARD)
+	/* RT6855A DDR configurations */
 	/* abstract DRAM_SPEED */
 	la		t0, RALINK_SYSCTL_BASE+0x8C
 	lw		t6, 0(t0)
@@ -860,10 +957,37 @@ DDR_READY:
 	la		t0, RALINK_DDR_CFG3
 	sw		t1, 0(t0)
 	nop
+
+	/* DQS delay use table value */	
 	lui		t0, %hi(DDR1_CFG4_TBL)
 	ori		t0, t0, %lo(DDR1_CFG4_TBL)
 	addu	t0, t0, t5
 	lw		t1, 0(t0)
+	nop
+#if 0 
+	/* DQS delay use DLL detected value then fixed the delay with a constant delay 8 */
+	la		t0, RALINK_SYSCTL_BASE + 0x18
+	lw		t2, 0(t0)
+	andi	t3,	t2, 0x1F
+	srl		t2, t2, 5
+	addiu	t6, zero, 5
+	mul		t0, t2, t6	
+	addu	t0, t0, t3
+	subu	t0, t0, 8
+	div		t0, t6
+	mflo	t2	
+	mfhi	t3
+	nop
+	nop
+	sll		t2, t2, 5
+	or		t2, t2, t3
+	sll		t4, t2, 9
+	or		t2, t2, t4
+	sll		t2, t2, 5
+	li		t3, ~(((0x1FF<<9)|0x1FF)<<5)
+	and		t1, t1, t3
+	or		t1, t1, t2
+#endif
 	la		t0, RALINK_DDR_CFG4
 	sw		t1, 0(t0)
 	nop
@@ -893,15 +1017,41 @@ DDR_READY:
 	sw		t1, 0(t0)
 	nop
 	
+	/* DQS delay use table value */	
 	lui		t0, %hi(DDR2_CFG4_TBL)
 	ori		t0, t0, %lo(DDR2_CFG4_TBL)
 	addu	t0, t0, t5
 	lw		t1, 0(t0)
 	nop
+#if 0
+	/* DQS delay use DLL detected value then fixed the delay with a constant delay 8 */
+	la		t0, RALINK_SYSCTL_BASE + 0x18
+	lw		t2, 0(t0)
+	andi	t3,	t2, 0x1F
+	srl		t2, t2, 5
+	addiu	t6, zero, 5
+	mul		t0, t2, t6	
+	addu	t0, t0, t3
+	subu	t0, t0, 8
+	div		t0, t6
+	mflo	t2	
+	mfhi	t3
+	nop
+	nop
+	sll		t2, t2, 5
+	or		t2, t2, t3
+	sll		t4, t2, 9
+	or		t2, t2, t4
+	sll		t2, t2, 5
+	li		t3, ~(((0x1FF<<9)|0x1FF)<<5)
+	and		t1, t1, t3
+	or		t1, t1, t2
+#endif
 	la		t0, RALINK_DDR_CFG4
 	sw		t1, 0(t0)
 	nop
-#if 0	
+
+#if 0
 	la		t0, RALINK_DDR_CFG9
 	li		t1, 0x88880000
 	sw		t1, 0(t0)
@@ -989,15 +1139,136 @@ DDR_READY:
 	la		t5, RALINK_DDR_CFG1
 	sw		DDR_CFG1_MIPSREG, 0(t5)
 	nop
-#endif
-	j SDRAM_INIT_DOWN
+	j 		SDRAM_INIT_DOWN
 	nop
+#endif	/* defined(RT6855A_ASIC_BOARD) */
+
+#if defined(MT7620_ASIC_BOARD)
+
+#if defined(ON_BOARD_DDR1)
+#if defined (ON_BOARD_64M_DRAM_COMPONENT)
+	addiu 	t4, zero, 0
+#elif defined (ON_BOARD_128M_DRAM_COMPONENT)
+	addiu	t4, zero, 1
+#elif defined (ON_BOARD_256M_DRAM_COMPONENT)
+	addiu 	t4, zero, 2
+#elif defined (ON_BOARD_512M_DRAM_COMPONENT)
+	addiu 	t4, zero, 3
+#elif defined (ON_BOARD_1024M_DRAM_COMPONENT)
+	addiu 	t4, zero, 4
+#else
+	DRAM Component not defined
+#endif
+#endif /* defined(ON_BOARD_DDR1) */
+
+#if defined(ON_BOARD_DDR2)
+#if defined (ON_BOARD_256M_DRAM_COMPONENT)
+	addiu 	t4, zero, 0
+#elif defined (ON_BOARD_512M_DRAM_COMPONENT)
+	addiu 	t4, zero, 1
+#elif defined (ON_BOARD_1024M_DRAM_COMPONENT)
+	addiu 	t4, zero, 2
+#elif defined (ON_BOARD_2048M_DRAM_COMPONENT)
+	addiu 	t4, zero, 3
+#else
+#error	"DRAM Component not defined"
+#endif
+#endif	/* defined(ON_BOARD_DDR2) */
+
+#if	defined(CPLL_FROM_480MHZ)
+	addiu	t6, zero, 1
+#else
+	addiu	t6, zero, 0
+#endif
+	
+	sll		t2, t4, 1
+	addu	t2, t2, t6
+	sll		t2, t2, 2
+#if defined(ON_BOARD_DDR1)
+	lui     t0, %hi(DDR1_CFG2_TBL)
+	ori     t0, t0, %lo(DDR1_CFG2_TBL)
+	addu    t0, t0, t2
+	lw      t7, 0(t0)
+	nop
+	lui     t0, %hi(DDR1_CFG3_TBL)
+	ori     t0, t0, %lo(DDR1_CFG3_TBL)
+	addu    t0, t0, t2
+	lw      t8, 0(t0)
+	nop
+	lui     t0, %hi(DDR1_CFG4_TBL)
+	ori     t0, t0, %lo(DDR1_CFG4_TBL)
+	addu    t0, t0, t2
+	lw      t9, 0(t0)
+	nop
+	lui     t0, %hi(DDR1_CFG0_TBL)
+	ori     t0, t0, %lo(DDR1_CFG0_TBL)
+	addu    t0, t0, t2
+	lw      DDR_CFG0_MIPSREG, 0(t0)
+	nop
+	lui     t0, %hi(DDR1_CFG1_TBL)
+	ori     t0, t0, %lo(DDR1_CFG1_TBL)
+	addu    t0, t0, t2
+	lw      DDR_CFG1_MIPSREG, 0(t0)
+	nop
+#endif
+#if defined(ON_BOARD_DDR2)	
+	lui		t0, %hi(DDR2_CFG2_TBL)
+	ori		t0, t0, %lo(DDR2_CFG2_TBL)	
+	addu	t0, t0, t2
+	lw		t7, 0(t0)
+	nop
+	lui		t0, %hi(DDR2_CFG3_TBL)
+	ori		t0, t0, %lo(DDR2_CFG3_TBL)
+	addu	t0, t0, t2
+	lw		t8, 0(t0)
+	nop
+	lui		t0, %hi(DDR2_CFG4_TBL)
+	ori		t0, t0, %lo(DDR2_CFG4_TBL)
+	addu	t0, t0, t2
+	lw		t9, 0(t0)
+	nop
+	lui		t0, %hi(DDR2_CFG0_TBL)
+	ori		t0, t0, %lo(DDR2_CFG0_TBL)
+	addu	t0, t0, t2
+	lw		DDR_CFG0_MIPSREG, 0(t0)
+	nop
+	lui		t0, %hi(DDR2_CFG1_TBL)
+	ori		t0, t0, %lo(DDR2_CFG1_TBL)
+	addu	t0, t0, t2	
+	lw		DDR_CFG1_MIPSREG, 0(t0)
+	nop
+#endif
+	la		t0, RALINK_DDR_CFG2
+	sw		t7, 0(t0)
+	nop
+	la		t0, RALINK_DDR_CFG3
+	sw		t8, 0(t0)
+	nop
+	la		t0, RALINK_DDR_CFG4
+	sw		t9, 0(t0)
+	nop
+#if defined(ON_BOARD_DDR2)	
+	la		t0, RALINK_DDR_CFG10
+	li		t1, 0x40404848
+	sw		t1, 0(t0)
+#endif	
+    la      t0, RALINK_DDR_CFG0
+	sw		DDR_CFG0_MIPSREG, 0(t0)
+	nop
+	la		t0, RALINK_DDR_CFG1
+	sw		DDR_CFG1_MIPSREG, 0(t0)
+	nop
+
+	j 		SDRAM_INIT_DOWN
+	nop
+#endif	/* defined(MT7620_ASIC_BOARD) */
+
 #endif /* defined(ON_BOARD_DDR1)||defined(ON_BOARD_DDR2) */
 
 
 #ifdef ON_BOARD_SDR
 SDR_INIT:
-#if defined(RT63365_FPGA_BOARD) || defined(RT63365_ASIC_BOARD)
+#if defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD)
 	li t1, RALINK_SYSCTL_BASE + 0x40
 	sw zero, 0(t1)
 	nop
@@ -1019,7 +1290,7 @@ SDR_INIT:
 	or t6, 0x91825282
 	//or t6, 0x91815282
 #endif
-#elif defined(RT6855_FPGA_BOARD) || defined (RT6352_FPGA_BOARD) || defined (RT71100_FPGA_BOARD)
+#elif defined(RT6855_FPGA_BOARD) || defined (MT7620_FPGA_BOARD) || defined (MT7621_FPGA_BOARD)
 	or t6, 0xD1825272
 	//or t6, 0xD1916292
 #else //2883, 3052, 3352, 3883, 5350 fpga
@@ -1029,14 +1300,14 @@ SDR_INIT:
 	nop	
 #endif
 #else //ASIC_BOARD
-#if defined(RT6855_ASIC_BOARD) || defined (RT6352_ASIC_BOARD) || defined (RT71100_ASIC_BOARD)
+#if defined(RT6855_ASIC_BOARD) || defined (MT7620_ASIC_BOARD) || defined (MT7621_ASIC_BOARD)
         or t6, 0xD1916292
 #else	
 	or t6, 0xD1825272
 #endif
 #endif
 	nop
-#if !defined(RT63365_ASIC_BOARD)	
+#if (!defined(RT6855A_ASIC_BOARD) && !defined(MT7620_ASIC_BOARD))
 	sw t6, 0(t5)
 	nop
 #endif
@@ -1100,12 +1371,12 @@ SDR_INIT:
 
 DO_SDRINIT:
 	nop
-#if !defined(RT63365_ASIC_BOARD)		
+#if (!defined(RT6855A_ASIC_BOARD) && !defined(MT7620_ASIC_BOARD))
 	sw 		t6, 0(t5)
 	nop
 #endif
 
-#if defined(RT63365_ASIC_BOARD)
+#if defined(RT6855A_ASIC_BOARD)
 	move	t1, zero	/* force to 140Mhz case */
 #if defined (ON_BOARD_16M_DRAM_COMPONENT)
 	addiu	t4, zero, 0
@@ -1139,9 +1410,57 @@ DO_SDRINIT:
 	nop
 	la		t0, SDRAM_CFG1_REG
 	sw		SDRAM_CFG1_MIPSREG, 0(t0)
-	nop	
+	nop
+	j			WAIT_SDRAM_INIT_DOWN
+	nop
+#endif /* defined(RT6855A_ASIC_BOARD) */
+
+#if defined(MT7620_ASIC_BOARD)
+
+#if defined (ON_BOARD_64M_DRAM_COMPONENT)
+	addiu	t4, zero, 0
+#elif defined (ON_BOARD_128M_DRAM_COMPONENT)
+	addiu	t4, zero, 1
+#elif defined (ON_BOARD_256M_DRAM_COMPONENT)
+	addiu	t4, zero, 2
+#elif defined (ON_BOARD_512M_DRAM_COMPONENT)
+	addiu	t4, zero, 3
+#else
+	DRAM Component not defined
 #endif
-WAIT_SDRAM_INIT_DOWN:	
+
+#if	defined(CPLL_FROM_480MHZ)
+	addiu	t6, zero, 1
+#else
+	addiu	t6, zero, 0
+#endif
+	sll		t2, t4, 1
+	addu	t2, t2, t6
+	sll		t2, t2, 2
+	
+	lui		t0, %hi(SDR_CFG0_TBL)
+	ori		t0, t0, %lo(SDR_CFG0_TBL)
+	addu	t0, t0, t2
+	lw		SDRAM_CFG0_MIPSREG, 0(t0)
+	nop
+	lui		t0, %hi(SDR_CFG1_TBL)
+	ori		t0, t0, %lo(SDR_CFG1_TBL)
+	addu	t0, t0, t2
+	lw		SDRAM_CFG1_MIPSREG, 0(t0)
+#if defined(RALINK_SDR_POWERSAVE)
+#endif	
+	la		t0, SDRAM_CFG0_REG
+  sw		SDRAM_CFG0_MIPSREG, 0(t0)
+	nop
+	la		t0, SDRAM_CFG1_REG
+	sw		SDRAM_CFG1_MIPSREG, 0(t0)
+	nop
+	j			WAIT_SDRAM_INIT_DOWN
+	nop
+#endif /* defined(MT7620_ASIC_BOARD) */
+
+WAIT_SDRAM_INIT_DOWN:
+	la		t5, SDRAM_CFG1_REG
 	lw t6, 0(t5)
 	nop
 	and  	t6, t6, SDRAM_CFG1_SDRAM_INIT_DONE
@@ -1151,7 +1470,8 @@ WAIT_SDRAM_INIT_DOWN:
 #endif // ON_BOARD_SDR //
 
 SDRAM_INIT_DOWN:
-#endif
+#endif /* #if (TEXT_BASE == 0xBFC00000) || (TEXT_BASE == 0xBF000000) || (TEXT_BASE == 0xBC000000) */
+
 #if defined(RT3883_FPGA_BOARD) || defined(RT3883_ASIC_BOARD)
 #ifdef ON_BOARD_DDR2
 #if (TEXT_BASE != 0xBFC00000) && (TEXT_BASE != 0xBF000000) && (TEXT_BASE != 0xBC000000)
@@ -1183,7 +1503,8 @@ SDRAM_INIT_DOWN:
 	    li t2, 0x9B82
 	    sw t2, 0(t1)
             nop
-
+#if 1
+	/* RT3352 EVB board with 32bits DDR shall disable this */
 	/* 
 	 * Enable spreading spectrum clock 
 	 * SSC_MODUMAG=7: +/-1.00% for center; -2.00% for down
@@ -1192,6 +1513,7 @@ SDRAM_INIT_DOWN:
 	    li t2, 0x71
 	    nop
 	    sw t2, 0(t1)
+#endif
 
 #ifdef ON_BOARD_DDR2
 #if 0
@@ -1319,16 +1641,26 @@ tRFC250:
 	DRAM Component not defined
 #endif
 
-#elif defined(RT6855_ASIC_BOARD) || defined (RT6352_ASIC_BOARD) || defined (RT71100_ASIC_BOARD)
+#elif defined(RT6855_ASIC_BOARD) || defined (MT7620_ASIC_BOARD) || defined (MT7621_ASIC_BOARD)
 #if defined(ON_BOARD_DDR1)
-	/* below 0x2419C640 is base on CLK = 200Mhz setting */	
-	li t4, 0x2419C640
-#elif defined(ON_BOARD_DDR2)
-	/* below 0x35AEA823 is base on CLK = 266Mhz setting */	
-	li t4, 0x35AEA823
+	li t4, 0x24218618	//use aggressive cfg 	//0x35A26500
+#elif defined(ON_BOARD_DDR2)	
+	//li t4, 0x35A28410
+#if defined (ON_BOARD_256M_DRAM_COMPONENT)
+	li t4, 0x2419E2E5
+#elif defined (ON_BOARD_512M_DRAM_COMPONENT)
+	li t4, 0x249AA2E5
+#elif defined (ON_BOARD_1024M_DRAM_COMPONENT)
+	li t4, 0x249B42E5
+#elif defined (ON_BOARD_2048M_DRAM_COMPONENT)
+	li t4, 0x249CE2E5
+#else
+	DRAM Component not defined
 #endif
 
-#elif defined(RT6855_FPGA_BOARD) || defined (RT6352_FPGA_BOARD) || defined (RT71100_FPGA_BOARD)
+#endif
+
+#elif defined(RT6855_FPGA_BOARD) || defined (MT7620_FPGA_BOARD) || defined (MT7621_FPGA_BOARD)
 #if defined(ON_BOARD_DDR1)
 	/* below 0x21086140 is base on CLK = 40Mhz setting */
         li t4, 0x21086140
@@ -1336,7 +1668,7 @@ tRFC250:
 /* below 0x21090138 is base on CLK = 40Mhz setting */
         li t4, 0x21090138
 #endif
-#elif defined(RT63365_FPGA_BOARD) || defined(RT63365_ASIC_BOARD)
+#elif defined(RT6855A_FPGA_BOARD) || defined(RT6855A_ASIC_BOARD)
 
 #else
 error	"DRAM Component not defined"
@@ -1349,7 +1681,9 @@ tRFCinit:
 	nop
 #endif
 
-#if defined(RT3352_FPGA_BOARD) || defined(RT3352_ASIC_BOARD)
+
+#if defined(RT3352_FPGA_BOARD) || defined(RT3352_ASIC_BOARD) ||\
+	defined(MT7620_FPGA_BOARD) || defined(MT7620_ASIC_BOARD)
 #if defined(RALINK_DDR_POWERSAVE)
 	/* DDR: enable self auto refresh for power saving
 	 * enable it by default for both RAM and ROM version (for CoC)
@@ -1370,8 +1704,9 @@ tRFCinit:
 #endif
 #endif // defined(RT3352_FPGA_BOARD) || defined(RT3352_ASIC_BOARD) //
 #else // SDR //
-#if defined(RT3352_FPGA_BOARD) || defined(RT3352_ASIC_BOARD) || \
-    defined (RT5350_FPGA_BOARD) || defined (RT5350_ASIC_BOARD)
+#if defined (RT3352_FPGA_BOARD) || defined (RT3352_ASIC_BOARD) || \
+    defined (RT5350_FPGA_BOARD) || defined (RT5350_ASIC_BOARD) || \
+	defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD)
 #if defined(RALINK_SDR_POWERSAVE)
 	/* SDR:enable precharge power saving
 	 */
@@ -1411,8 +1746,8 @@ tRFCinit:
 
 #endif
 #endif  // defined(RT3352_FPGA_BOARD) || defined (RT3352_ASIC_BOARD) //
-	//gpiomode for non 63365
-#if !defined(RT63365_FPGA_BOARD) && !defined(RT63365_ASIC_BOARD)
+	//gpiomode for non 6855A
+#if !defined(RT6855A_FPGA_BOARD) && !defined(RT6855A_ASIC_BOARD)
 	li t5, RALINK_SYSCTL_BASE + 0x0060
 	lw t6, 0(t5)
 	nop
@@ -1431,11 +1766,19 @@ tRFCinit:
 	and t6, ~(0xf<<7)
 	and t6, ~(0x3<<5)
 	and t6, ~(0x3)
+#if defined(MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD)
+	and t6, ~(0xf<<16)
+	/* set PERST_N to GPIO MODE */
+	or	t6, (0x2<<16)
+	/* set NAND|SD to GPIO MODE */
+	or  t6, (0x2<<18)
+#else	
 	/* LNA_G_SHARE_MODE and LNA_A_SHARE_MODE at normal function, not GPIO mode */
 	and t6, ~(0xf<<16)
 #endif
+#endif
 
-#if defined(RT3052_ASIC_BOARD) || defined(RT3352_ASIC_BOARD) || defined(RT6855_ASIC_BOARD) || defined(RT6352_ASIC_BOARD) || defined(RT71100_ASIC_BOARD)
+#if defined(RT3052_ASIC_BOARD) || defined(RT3352_ASIC_BOARD) || defined(RT6855_ASIC_BOARD) || defined(MT7621_ASIC_BOARD)
 #if defined(P5_MAC_TO_PHY_MODE)
 	//set mdio pin to normal mode
 	and t6, ~0x80
@@ -1452,8 +1795,21 @@ tRFCinit:
 	//configure UARTF pin to gpio mode (GPIO7~GPIO14)
 	or t6, 0x1c
 #endif
-
 #endif
+
+#if defined(MT7620_ASIC_BOARD)
+#if defined(P5_MAC_TO_PHY_MODE)
+	//set mdio pin to normal mode
+	and t6, ~(0x2<<7)
+#else
+	//set mdio pin to gpio mode
+	or t6, (0x2<<7)
+#endif	
+#if defined(UARTF_AT_GPIO_FUNC)
+	//configure UARTF pin to gpio mode (GPIO7~GPIO14)
+	or t6, 0x1c
+#endif
+#endif	
 
 #ifdef MAC_TO_VITESSE_MODE
 	//set spi pin to normal mode
@@ -1503,7 +1859,12 @@ tRFCinit:
 	/* SPI_HOLD should not set as GPIO output */	
 	//set all GPIO to output high
         li t5, RALINK_PIO_BASE + 0x24
+#if defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD)
+	/* for MT7620 RFB power saving, change UARTF pins to input mode */
+        li t6, 0x00ff807f
+#else
         li t6, 0xffffbfff
+#endif
         nop
         sw t6, 0(t5)
         nop
@@ -1595,7 +1956,7 @@ tRFCinit:
 	//turn on power LED (GPIO ?)
 #elif defined(RT5350_ASIC_BOARD)
 	//turn on power LED (GPIO ?)
-#elif defined(RT6855_ASIC_BOARD) || defined(RT6352_ASIC_BOARD) || defined(RT71100_ASIC_BOARD)
+#elif defined(RT6855_ASIC_BOARD) || defined(MT7620_ASIC_BOARD) || defined(MT7621_ASIC_BOARD)
 	//turn on power LED (GPIO ?)
 #elif defined(RT3883_ASIC_BOARD)
 	//turn on power LED (GPIO ?)
@@ -1786,10 +2147,10 @@ romReserved:
 
 romExcHandle:
 	b romExcHandle
-#if defined(RT63365_ASIC_BOARD)
-	.global         rt63365_cpu_pll
-	.ent            rt63365_cpu_pll
-rt63365_cpu_pll:
+#if defined(RT6855A_ASIC_BOARD)
+	.global         rt6855A_cpu_pll
+	.ent            rt6855A_cpu_pll
+rt6855A_cpu_pll:
 	la              t0, RALINK_SYSCTL_BASE + 0x8C
 	lw              t1, 0(t0)
 	nop
@@ -1921,19 +2282,252 @@ TFBGA_PACKAGE_DOWN:
 PLL_DONE:
 	jr              ra
 	nop
-	.end            rt63365_cpu_pll
+	.end            rt6855A_cpu_pll
+#endif
+#if defined(MT7620_ASIC_BOARD) || defined(MT7620_FPGA_BOARD)
+/************************************************************************************/
+/*																					*/	
+/*	void init_cpu_pll(const u16 cpll_param)											*/
+/*	cpll_param = a0 = AUX1[12],AUX0[11],MULTI_RATIO[10:8],DIV_RATIO[7:6],SSC[5:0]   */
+/*																					*/
+/************************************************************************************/
+	.globl		init_cpu_pll
+	.ent		init_cpu_pll
+init_cpu_pll:
+	/* check AUX1[12] and AUX0[11] */
+	la			t0, RALINK_CPLLCFG1_REG
+	lw			t1, 0(t0)
+	li			t2, 1<<12
+	and			t2, a0, t2
+	move		t5, zero
+	li			t4, 1<<25			/* t4=1<<25, AUX1 as clock source */
+	bnez		t2, 1f
+	nop
+	li			t3, 1<<11
+	and			t3, a0, t3
+	li			t4, 1<<24			/* t4=1<<24, AUX0 as clock source */
+	movz		t4, zero, t3
+1:	
+	/* Switch clock source from CPU PLL to AUX1 */
+	la			t0, RALINK_CPLLCFG1_REG
+	lw			t1, 0(t0)
+	li			t2, ~(0x3<<24)
+	and			t1, t1, t2
+	//li			t2, 1<<25			/* choose AUX1 XTAL 20/40Mhz for backup clock source */
+	li			t2, 1<<24				/* choose 480Mhz for backup clock source */
+	movn		t2, zero, t4
+	or			t1, t1, t2
+	or			t1, t1, t4
+	sw			t1, 0(t0)	
+	bnez		t4, CPLL_EXIT 	
+	nop
+	
+	/* read CPLLCFG0 before SW_CFG = 1 */
+	la          t0, RALINK_CPLLCFG0_REG
+	lw          t1, 0(t0)
 
+	/* apply new params */
+	la          t0, RALINK_CPLLCFG0_REG
+	lw          t3, 0(t0)
+	li          t2, 1<<31
+	or          t3, t3, t2
+	sw          t3, 0(t0)
+	nop
+	/* Power down CPU PLL */
+	la			t0, RALINK_CPLLCFG1_REG
+	lw			t2, 0(t0)
+	li			t3, 1<<26
+	or			t2, t2, t3
+	sw			t2, 0(t0)
+	/* Set new CPU PLL freq & SSC */
+	//la			t0, RALINK_CPLLCFG0_REG
+	//lw			t1, 0(t0)
+	and			t2, a0, 0x3F
+	sll			t2, t2, 4
+	srl			t3, a0, 6
+	and			t3, t3, 0x3
+   	sll			t3, t3, 10	
+	srl			t4, a0, 8
+	and			t4, t4, 0x7
+	sll			t4, t4, 16
+	or			t2, t2, t3
+	or			t2, t2, t4
+	li			t3, ~((0x7<<16)|(0x3<<10)|(0x1F<<4))
+	and			t1, t1, t3
+	or			t1, t1, t2
+	li			t5, 1<<31
+	or			t1, t1, t5
+#if 0	
+	la			t2, RALINK_SYSCFG0_REG
+	lw			t3, 0(t0)
+	addiu		t4, zero, 0x1
+	sll			t3, t3, 6
+	and			t3, t3, t4
+	li			t5, ~(1<<15)
+	and			t1, t1, t5
+	li			t5, 1<<15
+	movz		t5,	zero, t3			/* t3=0, XTAL=20Mhz */
+	or			t1, t1, t5
+#endif
+	la          t0, RALINK_CPLLCFG0_REG
+	sw			t1, 0(t0)
+	nop
+	/* Power up CPU PLL */
+	la			t0, RALINK_CPLLCFG1_REG
+	lw			t1, 0(t0)
+	li			t2, ~(1<<26)
+	and			t1, t1, t2
+	sw			t1, 0(t0)
+	nop
+
+	/* Polling CPU PLL PD Signal */
+	la			t0, RALINK_CPLLCFG1_REG
+	li			t2, 1<<23	
+1:
+	lw			t1, 0(t0)
+	nop	
+	and			t1, t1, t2
+  beqz		t1, 1b
+	nop	
+
+	/* Switch clock source from CPU_CLK_AUX0/AUX1 to CPU PLL */
+	la			t0, RALINK_CPLLCFG1_REG
+	lw			t1, 0(t0)
+	li			t2, ~(0x3<<24)
+	and			t1, t1, t2
+	sw			t1, 0(t0)
+	nop
+CPLL_EXIT:
+	jr			ra
+	.end		init_cpu_pll
+/**********************************************************/	
+#if defined(MT7620_ASIC_BOARD)
 		.text
 		.global SDR_CFG0_TBL
 		.align  3
 SDR_CFG0_TBL:
-				/* 140MHZ */    /* 105MHZ */
+						/* 150MHZ */    /* 120MHZ */
+		.word   0x51B283B3,     0x51B283B3
+		.word   0x51B283B3,     0x51B283B3
+		.word   0x51B283B3,     0x51B283B3
+		.word   0x51B283B3,     0x51B283B3
+		.text
+		.global SDR_CFG1_TBL
+		.align  3
+SDR_CFG1_TBL:	
+						/* 150MHZ */    /* 120MHZ */
+		.word   0xC00103A9,     0xC00103A9      /* 8MB */
+		.word   0xC01103A9,     0xC01103A9      /* 16MB */
+		.word   0xC01203A9,     0xC01203A9      /* 32MB */
+		.word   0xC02203A9,     0xC02203A9      /* 64MB */
+		
+		.text
+		.global	DDR1_CFG0_TBL
+		.align	3
+DDR1_CFG0_TBL:
+						/* 200MHZ */		/* 160MHZ */	
+        .word       0x34A1EB94,         0x239964A1		/* 8MB */
+		.word       0x34A1EB94,         0x239964A1		/* 16MB */
+		.word		0x34A1E5CA, 		0x239964A1			/* 32MB */
+		.word		0x3421E5CA, 		0x239984A1			/* 64MB */
+		.word		0x241B05CA, 		0x239AB4A1			/* 128MB */	
+
+		
+		.text
+		.global	DDR1_CFG1_TBL
+		.align	3
+DDR1_CFG1_TBL:
+						/* 200MHZ */		/* 160MHZ */
+		.word       0x20262324,         0x20262323		/* 8MB */
+		.word       0x202A2324,         0x202A2323		/* 16MB */
+		.word		0x202E2324, 		0x202E2323			/* 32MB */
+		.word		0x20322324, 		0x20322323			/* 64MB */
+		.word		0x20362334, 		0x20362333			/* 128MB */	
+		
+		.text
+		.align	3
+						/* 200MHZ */		/* 160MHZ */
+DDR1_CFG2_TBL:
+		.word		0x28000033, 		0x00000033
+		.word		0x28000033, 		0x00000033
+		.word		0x28000033, 		0x00000033
+		.word		0x28000033, 		0x00000033
+		.word		0x28000033, 		0x00000033
+			
+DDR1_CFG3_TBL:
+		.word		0x00000002, 		0x00000002
+		.word		0x00000002, 		0x00000002
+		.word		0x00000002, 		0x00000002
+		.word		0x00000002, 		0x00000002
+		.word		0x00000002, 		0x00000002
+DDR1_CFG4_TBL:
+		.word		0x00000000, 		0x00000000
+		.word		0x00000000, 		0x00000000
+		.word		0x00000000, 		0x00000000
+		.word		0x00000000, 		0x00000000
+		.word		0x00000000, 		0x00000000
+
+		.text
+		.global	DDR2_CFG0_TBL
+		.align	3
+DDR2_CFG0_TBL:
+						/* 200MHZ */		/* 160MHZ */
+		.word		0x2519E2E5, 		0x23918250			/* 32MB */
+		.word		0x249AA2E5, 		0x239A2250			/* 64MB */
+		.word		0x249B42E5,		 	0x2392A250			/* 128MB */
+		.word		0x249CE2E5,			0x24140250			/* 256MB */
+		
+		.text
+		.global	DDR2_CFG1_TBL
+		.align	3
+DDR2_CFG1_TBL:
+						/* 200MHZ */		/* 160MHZ */
+		.word		0x222E2323,		 	0x222E2322			/* 32MB */
+		.word		0x22322323,		 	0x22322322			/* 64MB */
+		.word		0x22362323,		 	0x22362322			/* 128MB */
+		.word		0x223A2323,		 	0x223A2322			/* 256MB */
+		
+		.text
+		.align	3
+						/* 200MHZ */		/* 160MHZ */
+DDR2_CFG2_TBL:
+		.word		0x68000C43, 		0x40000A43
+		.word		0x68000C43, 		0x40000A43
+		.word		0x68000C43, 		0x40000A43
+		.word		0x68000C43, 		0x40000A43
+		
+		.text
+		.align	3
+DDR2_CFG3_TBL:
+						/* 200MHZ */		/* 160MHZ */
+		.word		0x00000416, 		0x00000416
+		.word		0x00000416, 		0x00000416
+		.word		0x00000416, 		0x00000416
+		.word		0x00000416, 		0x00000416
+		
+		.text
+		.align	3
+DDR2_CFG4_TBL:
+						/* 200MHZ */		/* 160MHZ */
+		.word		0x0000000A, 		0x00000006
+		.word		0x0000000A, 		0x00000008
+		.word		0x0000000A, 		0x00000008
+		.word		0x0000000A, 		0x00000008
+#endif	
+/**********************************************************/	
+#endif
+#if defined(RT6855A_ASIC_BOARD)
+		.text
+		.global SDR_CFG0_TBL
+		.align  3
+SDR_CFG0_TBL:
+			/* 140MHZ */    /* 105MHZ */
 		.word   0x11925282,     0x11623161
 		.text
 		.global SDR_CFG1_TBL
 		.align  3
 SDR_CFG1_TBL:	
-				/* 140MHZ */    /* 105MHZ */
+			/* 140MHZ */    /* 105MHZ */
 		.word   0x8000088B,     0x80000668      /* 2MB */
 		.word   0x8001088B,     0x80010668      /* 8MB */
 		.word   0x8011088B,     0x80110668      /* 16MB */
@@ -1943,29 +2537,29 @@ SDR_CFG1_TBL:
 		.global	DDR1_CFG0_TBL
 		.align	3
 DDR1_CFG0_TBL:
-				/* 233MHZ */	/* 175MHZ */	/* 166MHZ */	/* 125MHZ */
-		.word	0x24A1CE3E, 	0x23A1AAAF,		0x23998A2D,		0x231927A2	/* 8MB */
-		.word	0x24A1CE3E, 	0x23A1AAAF,		0x23998A2D,		0x231927A2	/* 16MB */
-		.word	0x24A1C71F, 	0x23A1A558,		0x23998517,		0x231923D1	/* 32MB */
-		.word	0x24A1C71F, 	0x23A1A558,		0x23998517,		0x231923D1	/* 64MB */
+			/* 233MHZ */	/* 175MHZ */	       /* 166MHZ */	       /* 125MHZ */
+		.word	0x352A2E34, 	0x3421AAAF,		0x23998A20,		0x2319279E	/* 8MB */
+		.word	0x352A2E34, 	0x3421AAAF,		0x23998A20,		0x2319279E	/* 16MB */
+		.word	0x352A271A, 	0x3421A558,		0x2399850E,		0x231923CF	/* 32MB */
+		.word	0x352A271A, 	0x3421A558,		0x2399850E,		0x231923CF	/* 64MB */
 		
 		.text
 		.global	DDR1_CFG1_TBL
 		.align	3
 DDR1_CFG1_TBL:
-				/* 233MHZ */	/* 175MHZ */	/* 166MHZ */	/* 125MHZ */
-		.word	0x22262424, 	0x22262323,		0x12262323,		0x12262223	/* 8MB */
-		.word	0x222A2424, 	0x222E2323,		0x122A2323,		0x122A2223	/* 16MB */
-		.word	0x222E2424, 	0x222E2323,		0x122E2323,		0x122E2223	/* 32MB */
-		.word	0x22322424, 	0x22322323,		0x12322323,		0x12322223	/* 64MB */
+			/* 233MHZ */	/* 175MHZ */	       /* 166MHZ */	       /* 125MHZ */
+		.word	0x20262424, 	0x20262324,		0x20262323,		0x20262223	/* 8MB */
+		.word	0x202A2424, 	0x202A2324,		0x202A2323,		0x202A2223	/* 16MB */
+		.word	0x202E2424, 	0x202E2324,		0x202E2323,		0x202E2223	/* 32MB */
+		.word	0x20322424, 	0x20322324,		0x20322323,		0x20322223	/* 64MB */
 		
 		.text
 		.align	3
-				/* 233MHZ */	/* 175MHZ */	/* 166MHZ */	/* 125MHZ */
+			/* 233MHZ */	/* 175MHZ */	        /* 166MHZ */	       /* 125MHZ */
 DDR1_CFG2_TBL:
-		.word	0x00000033, 	0x00000033,		0x00000063,		0x00000063	
+		.word	0x00000033, 	0x00000033,		0x00000033,		0x00000063	
 DDR1_CFG3_TBL:
-		.word	0x00000002, 	0x00000002,		0x00000002,		0x00000002
+		.word	0x00000000, 	0x00000000,		0x00000000,		0x00000002
 DDR1_CFG4_TBL:
 		.word	0x00000000, 	0x00000000,		0x00000000,		0x00000000
 				
@@ -1973,29 +2567,29 @@ DDR1_CFG4_TBL:
 		.global	DDR2_CFG0_TBL
 		.align	3
 DDR2_CFG0_TBL:
-				/* 233MHZ */	/* 175MHZ */	/* 166MHZ */	/* 125MHZ */
-		.word	0x35A2438E, 	0x2421C2AB,		0x2421A28A,		0x231941E8	/* 32MB */
-		.word	0x359B238C, 	0x242262AB,		0x2422428A,		0x2319C1E8	/* 64MB */
-		.word	0x35A3C38E, 	0x2422E2AB,		0x2422C28A,		0x231A01E8	/* 128MB */
-		.word	0x35A5E38E, 	0x242462AB,		0x2424228A,		0x231B21E8	/* 256MB */
+			/* 233MHZ */	/* 175MHZ */	        /* 166MHZ */    	/* 125MHZ */
+		.word	0x35A2438D, 	0x2419C2AB,		0x2419A287,		0x231941E7	/* 32MB */
+		.word	0x35A3238D, 	0x241A62AB,		0x241A4287,		0x2319C1E7	/* 64MB */
+		.word	0x35A3C38D, 	0x241AE2AB,		0x241AC287,		0x231A01E7	/* 128MB */
+		.word	0x35A5E38D, 	0x241C62AB,		0x241C2287,		0x231B21E7	/* 256MB */
 		
 		.text
 		.global	DDR2_CFG1_TBL
 		.align	3
 DDR2_CFG1_TBL:
-				/* 233MHZ */	/* 175MHZ */	/* 166MHZ */	/* 125MHZ */
+			/* 233MHZ */	/* 175MHZ */	        /* 166MHZ */	        /* 125MHZ */
 		.word	0x222E2424, 	0x222E2324,		0x222E2324,		0x212E2223	/* 32MB */
-		.word	0x22322423, 	0x22322324,		0x22322324,		0x21322223	/* 64MB */
+		.word	0x22322424, 	0x22322324,		0x22322324,		0x21322223	/* 64MB */
 		.word	0x22362424, 	0x22362324,		0x22362324,		0x21362223	/* 128MB */
 		.word	0x223A2424, 	0x223A2324,		0x223A2324,		0x213A2223	/* 256MB */
 		
 		.text
 		.align	3
-				/* 233MHZ */	/* 175MHZ */	/* 166MHZ */	/* 125MHZ */
+			/* 233MHZ */	/* 175MHZ */	       /* 166MHZ */	        /* 125MHZ */
 DDR2_CFG2_TBL:
-		.word	0x40000E43, 	0x40000C43,		0x40000443,		0x40000243
+		.word	0x68000E43, 	0x40000C43,		0x40000C43,		0x40000843
 DDR2_CFG3_TBL:
 		.word	0x10000400, 	0x00000400,		0x00000402,		0x00000402
 DDR2_CFG4_TBL:
-		.word	0x0010C86B, 	0x0000000B,		0x0000000B,		0x0000000B
+		.word	0x0010080C, 	0x0000000B,		0x0000000B,		0x0000000B
 #endif	

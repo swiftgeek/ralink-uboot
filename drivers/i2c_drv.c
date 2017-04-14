@@ -24,7 +24,7 @@
 
 #if (CONFIG_COMMANDS & CFG_CMD_I2C) 
 
-#if defined (RT63365_ASIC_BOARD) || defined (RT63365_FPGA_BOARD)
+#if defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD)
 #define BBU_I2C
 #endif
 #define	RT2880_I2C_DUMP_STR		"dump"	/* Dump Content Command Prompt    */

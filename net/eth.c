@@ -69,6 +69,7 @@ void eth_parse_enetaddr(const char *addr, uchar *enetaddr)
 	}
 }
 
+#ifdef CONFIG_NET_MULTI
 struct eth_device *eth_get_dev(void)
 {
 	return eth_current;
@@ -95,6 +96,7 @@ int eth_get_dev_index (void)
 
 	return (0);
 }
+#endif
 
 int eth_register(struct eth_device* dev)
 {
@@ -284,6 +286,7 @@ int eth_initialize(bd_t *bis)
 	return eth_number;
 }
 
+#ifdef CONFIG_NET_MULTI
 void eth_set_enetaddr(int num, char *addr) {
 	struct eth_device *dev;
 	unsigned char enetaddr[6];
@@ -318,7 +321,7 @@ void eth_set_enetaddr(int num, char *addr) {
 
 	memcpy(dev->enetaddr, enetaddr, 6);
 }
-
+#endif
 int eth_init(bd_t *bis)
 {
 	struct eth_device* old_current;
@@ -421,8 +424,10 @@ void eth_set_current(void)
 }
 #endif
 
+#if defined(CONFIG_NET_MULTI)
 char *eth_get_name (void)
 {
 	return (eth_current ? eth_current->name : "unknown");
 }
+#endif
 #endif

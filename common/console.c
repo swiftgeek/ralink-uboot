@@ -274,27 +274,6 @@ int ctrlc (void)
 	return 0;
 }
 
-int kaiker_button_p (void)
-{
-	DECLARE_GLOBAL_DATA_PTR;
-
-	if (!ctrlc_disabled && gd->have_console) {
-		if (tstc ()) {
-			switch (getc ()) {
-			case 0x03:		/* ^C - Control C */
-				ctrlc_was_pressed = 1;
-				return 1;
-			case 0x70:
-			return 2;	
-			case 'q':
-			return 3;
-			default:
-				break;
-			}
-		}
-	}
-	return 0;
-}
 
 /* pass 1 to disable ctrlc() checking, 0 to enable.
  * returns previous state

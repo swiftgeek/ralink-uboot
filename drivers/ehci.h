@@ -191,4 +191,6 @@ struct QH {
 int ehci_hcd_init(void);
 int ehci_hcd_stop(void);
 
+#define mdelay(n) ({unsigned long msec=(n); while (msec--) udelay(1000);})
+
 #endif /* USB_EHCI_H */

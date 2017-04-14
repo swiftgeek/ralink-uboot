@@ -78,7 +78,6 @@ typedef struct {
 extern unsigned long flash_init (void);
 extern void flash_print_info (flash_info_t *);
 extern int flash_erase	(flash_info_t *, int, int);
-//add by kaiker
 extern int erase_all_chip(flash_info_t *, int, int);
 extern int flash_sect_erase (ulong addr_first, ulong addr_last);
 extern int flash_sect_protect (int flag, ulong addr_first, ulong addr_last);

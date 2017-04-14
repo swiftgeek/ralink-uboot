@@ -42,8 +42,8 @@ extern const unsigned int nand_size_map[2][3];
 #define NFC_ADDR	(NFC_BASE + 0x14)
 #define NFC_DATA	(NFC_BASE + 0x18)
 #if defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) || \
-    defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) || \
-    defined (RT6352_FPGA_BOARD) || defined (RT6352_ASIC_BOARD)
+    defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD) || \
+    defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD)
 #define NFC_ECC		(NFC_BASE + 0x30)
 #else
 #define NFC_ECC		(NFC_BASE + 0x1c)
@@ -52,8 +52,8 @@ extern const unsigned int nand_size_map[2][3];
 #define NFC_INT_EN	(NFC_BASE + 0x24)
 #define NFC_INT_ST	(NFC_BASE + 0x28)
 #if defined (RT6855_FPGA_BOARD) || defined (RT6855_ASIC_BOARD) || \
-    defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) || \
-    defined (RT6352_FPGA_BOARD) || defined (RT6352_ASIC_BOARD)
+    defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD) || \
+    defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD)
 #define NFC_CONF1	(NFC_BASE + 0x2c)
 #define NFC_ECC_P1	(NFC_BASE + 0x30)
 #define NFC_ECC_P2	(NFC_BASE + 0x34)

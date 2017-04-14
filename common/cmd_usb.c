@@ -34,7 +34,7 @@
 #include <usb.h>
 
 #ifdef CONFIG_USB_STORAGE
-static int usb_stor_curr_dev=-1; /* current device */
+int usb_stor_curr_dev=-1; /* current device */
 #endif
 
 /* some display routines (info command) */

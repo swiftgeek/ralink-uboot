@@ -178,11 +178,10 @@ endif
 LIBS += lib_$(ARCH)/lib$(ARCH).a
 LIBS += net/libnet.a
 
-LIBS += rtc/librtc.a
-#LIBS += dtt/libdtt.a
+#LIBS += rtc/librtc.a
 LIBS += drivers/libdrivers.a
 
-ifdef RALINK_USB
+ifeq ($(RALINK_USB),ON)
 LIBS += fs/fat/libfat.a
 LIBS += disk/libdisk.a
 endif

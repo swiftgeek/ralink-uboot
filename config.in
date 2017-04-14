@@ -11,9 +11,9 @@ choice 'Chip ID'	 "RT2880 RT2880_FPGA_BOARD \
                           RT3352 RT3352_FPGA_BOARD \
                           RT3883 RT3883_FPGA_BOARD \
                           RT5350 RT5350_FPGA_BOARD \
-                          RT6855(63365) RT63365_FPGA_BOARD \
-                          RT6352 RT6352_FPGA_BOARD \
-                          RT71100 RT71100_FPGA_BOARD 
+                          RT6855A RT6855A_FPGA_BOARD \
+                          MT7620 MT7620_FPGA_BOARD \
+                          MT7621 MT7621_FPGA_BOARD 
                          "
 else
 choice 'Chip ID'	" RT2880 RT2880_ASIC_BOARD \
@@ -22,9 +22,8 @@ choice 'Chip ID'	" RT2880 RT2880_ASIC_BOARD \
                           RT3352 RT3352_ASIC_BOARD \
                           RT3883 RT3883_ASIC_BOARD \
                           RT5350 RT5350_ASIC_BOARD \
-                          RT6855(63365) RT63365_ASIC_BOARD \
-                          RT6352 RT6352_ASIC_BOARD \
-                          RT71100 RT71100_ASIC_BOARD 
+                          RT6855A RT6855A_ASIC_BOARD \
+                          MT7620 MT7620_ASIC_BOARD
                          "
 fi
 
@@ -637,6 +636,9 @@ if [ "$ON_BOARD_SPI_FLASH_COMPONENT" == "y" ]; then
 choice 'Ram/Rom version' "RAM UBOOT_RAM \
 			  ROM UBOOT_ROM 
 			 " ROM
+#choice 'Small Uboot/Config partition' "Normal_Partition_5_sectors NORMAL_UBOOT_PARTITION \
+#				       Small_Partition_3_sectors SMALL_UBOOT_PARTITION
+#				      " Normal_Partition_5_sectors
 else
 define_bool UBOOT_RAM y
 fi
@@ -675,14 +677,14 @@ fi
 fi
 
 #########################################################################################3
-# RT63365
+# RT6855A
 #########################################################################################3
-if [ "$RT63365_FPGA_BOARD" = "y" -o "$RT63365_ASIC_BOARD" = "y" ]; then
+if [ "$RT6855A_FPGA_BOARD" = "y" -o "$RT6855A_ASIC_BOARD" = "y" ]; then
 
-define_bool RT63365_MP y
+define_bool RT6855A_MP y
 
 #-----------------------
-# RT63365 GMAC
+# RT6855A GMAC
 #-----------------------
 choice 'Port 5 Connect to' "None		P5_MAC_TO_NONE_MODE \
 			    Giga_Phy(RGMII)	P5_MAC_TO_PHY_MODE \
@@ -692,7 +694,7 @@ choice 'Port 5 Connect to' "None		P5_MAC_TO_NONE_MODE \
 			    " None
 
 if [ "$P5_MAC_TO_PHY_MODE" = "y" ]; then
-   hex "GigaPHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1f
+   hex "GigaPHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x5
 fi
 
 if [ "$P5_RGMII_TO_MAC_MODE" = "y" ]; then
@@ -700,14 +702,14 @@ if [ "$P5_RGMII_TO_MAC_MODE" = "y" ]; then
 fi
 
 #-----------------------
-# RT63365 FLASH
+# RT6855A FLASH
 #-----------------------
 choice 'Flash Type' "NAND ON_BOARD_NAND_FLASH_COMPONENT \
 		     SPI ON_BOARD_SPI_FLASH_COMPONENT
 		    "SPI
 
 #-----------------------
-# RT63365 DRAM
+# RT6855A DRAM
 #-----------------------
 choice 'DRAM Type' "SDR ON_BOARD_SDR \
 		    DDR1 ON_BOARD_DDR1 \
@@ -742,19 +744,59 @@ fi
 define_bool ON_BOARD_16BIT_DRAM_BUS y
 
 #-----------------------
-# RT63365 Option
+# RT6855A Option
 #-----------------------
 comment ""
 if [ "$ON_BOARD_SPI_FLASH_COMPONENT" == "y" ]; then
 #choice 'Ram/Rom version' "RAM UBOOT_RAM \
 #			  ROM UBOOT_ROM 
 #			 " ROM
+#choice 'Small Uboot/Config partition' "Normal_Partition_5_sectors NORMAL_UBOOT_PARTITION \
+#				       Small_Partition_3_sectors SMALL_UBOOT_PARTITION
+#				      " Normal_Partition_5_sectors
 define_bool UBOOT_ROM y
+define_bool UBOOT_RAM n
 else
+define_bool UBOOT_ROM n
 define_bool UBOOT_RAM y
 fi
 
+bool "Partition LAN/WAN" LAN_WAN_PARTITION
+if [ "$LAN_WAN_PARTITION" = "y" ]; then
+ choice 'LAN/WAN Board Layout' "W/LLLL RALINK_DEMO_BOARD_PVLAN \
+		                LLLL/W RALINK_EV_BOARD_PVLAN 
+			       "
+fi
+
 bool "Dual Image" DUAL_IMAGE_SUPPORT
+
+if [ "$ON_BOARD_NAND_FLASH_COMPONENT" = "y" ]; then
+bool "Static DRAM Parameter" DRAM_PARAMETERS
+if [ "$DRAM_PARAMETERS" = "y" ]; then
+if [ "$ON_BOARD_SDR" = "y" ]; then
+hex " SDRAM_CFG0"		DRAM_CFG0	11925282
+hex " SDRAM_CFG1"		DRAM_CFG1	8011088B
+else 
+if [ "$ON_BOARD_DDR1" = "y" ]; then
+hex " DDR_CFG0"			DRAM_CFG0				352A2E34
+hex " DDR_CFG1"			DRAM_CFG1				202A2424
+hex " DDR_CFG2"			DDR_CFG2_SETTING			33
+hex " DDR_CFG3"			DDR_CFG3_SETTING			0
+hex " DDR_CFG4"			DDR_CFG4_SETTING			0
+hex " DRAM_PAD_SETTING" DRAM_PAD_SETTING		00094054
+else 
+if [ "$ON_BOARD_DDR2" = "y" ]; then
+hex " DDR_CFG0"         DRAM_CFG0               35A3238D
+hex " DDR_CFG1"         DRAM_CFG1               22322424
+hex " DDR_CFG2"         DDR_CFG2_SETTING        40000E43
+hex " DDR_CFG3"         DDR_CFG3_SETTING        10000400
+hex " DDR_CFG4"         DDR_CFG4_SETTING        0010080C
+hex " DRAM_PAD_SETTING" DRAM_PAD_SETTING		00094054
+fi
+fi
+fi
+fi
+fi
 
 if [ "$UBOOT_RAM" = "y" ]; then
 define_hex TEXT_BASE  0xa0200000
@@ -764,14 +806,14 @@ fi
 
 fi
 #########################################################################################3
-# RT6352
+# MT7620
 #########################################################################################3
-if [ "$RT6352_FPGA_BOARD" = "y" -o "$RT6352_ASIC_BOARD" = "y" ]; then
+if [ "$MT7620_FPGA_BOARD" = "y" -o "$MT7620_ASIC_BOARD" = "y" ]; then
 
-define_bool RT6352_MP y
+define_bool MT7620_MP y
 
 #-----------------------
-# RT6352 GMAC
+# MT7620 GMAC
 #-----------------------
 choice 'Port 5 Connect to' "None		P5_MAC_TO_NONE_MODE \
 			    Giga_Phy(RGMII)	P5_MAC_TO_PHY_MODE \
@@ -781,7 +823,7 @@ choice 'Port 5 Connect to' "None		P5_MAC_TO_NONE_MODE \
 		      	   " None
                        
 if [ "$P5_MAC_TO_PHY_MODE" = "y" ]; then
-   hex "GigaPHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1f
+   hex "GigaPHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x5
 fi
 
 if [ "$P5_RGMII_TO_MAC_MODE" = "y" ]; then
@@ -801,7 +843,7 @@ fi
 
 
 #-----------------------
-# RT6352 FLASH
+# MT7620 FLASH
 #-----------------------
 choice 'Flash Type' "NAND ON_BOARD_NAND_FLASH_COMPONENT \
                      SPI ON_BOARD_SPI_FLASH_COMPONENT
@@ -814,7 +856,7 @@ choice 'Flash Size' "4M ON_BOARD_4M_FLASH_COMPONENT \
 		    " 4M
 fi
 #-----------------------
-# RT6352 DRAM
+# MT7620 DRAM
 #-----------------------
 choice 'DRAM Type' "SDR ON_BOARD_SDR \
 	            DDR1 ON_BOARD_DDR1 \
@@ -837,35 +879,109 @@ choice 'DDR Component' "128Mb ON_BOARD_128M_DRAM_COMPONENT \
 else
 if [ "$ON_BOARD_DDR2" = "y" ]; then
 choice 'DDR Component' "256Mb ON_BOARD_256M_DRAM_COMPONENT \
-                        512Mb ON_BOARD_512M_DRAM_COMPONENT \
+												512Mb ON_BOARD_512M_DRAM_COMPONENT \
 												1024Mb ON_BOARD_1024M_DRAM_COMPONENT \
 												2048Mb ON_BOARD_2048M_DRAM_COMPONENT
-		      " 512Mb
+												" 512Mb
 fi
 fi
+fi
+
+if [ "$ON_BOARD_DDR1" = "y" -o "$ON_BOARD_DDR2" = "y" ]; then
 choice 'DDR Width' "8bits ON_BOARD_DDR_WIDTH_8 \
 	            16bits ON_BOARD_DDR_WIDTH_16
 		   " 16bits
-define_bool ON_BOARD_16BIT_DRAM_BUS y
 fi
 
+define_bool ON_BOARD_16BIT_DRAM_BUS y
+
 #-----------------------
-# RT6352 Option
+# MT7620 Option
 #-----------------------
 comment ""
-choice 'PDMA Version' "OLD PDMA_OLD \
-	               NEW PDMA_NEW
-		      "OLD
 
-bool "Rx Scatter-Gather DMA" RX_SCATTER_GATTER_DMA
+define_bool PDMA_NEW y
+define_bool RX_SCATTER_GATTER_DMA y
+
 
 if [ "$ON_BOARD_SPI_FLASH_COMPONENT" == "y" ]; then
 choice 'Ram/Rom version' "RAM UBOOT_RAM \
 			  ROM UBOOT_ROM 
 			 " ROM
+#choice 'Small Uboot/Config partition' "Normal_Partition_5_sectors NORMAL_UBOOT_PARTITION \
+#				       Small_Partition_3_sectors SMALL_UBOOT_PARTITION
+#				      " Normal_Partition_5_sectors
 else
 define_bool UBOOT_RAM y
 fi
+
+
+if [ "$UBOOT_ROM" = "y" ]; then
+if [ "$ON_BOARD_SDR" = "y" ]; then
+choice 'CPU PLL source' "None CPLL_NONE	\
+		   						AUX0 CPLL_FROM_480MHZ	\
+								AUX1 CPLL_FROM_XTAL \
+								CONF CPLL_FROM_CONF
+								" None
+else
+choice 'CPU PLL source' "None CPLL_NONE	\
+		   						AUX0 CPLL_FROM_480MHZ	\
+								AUX1 CPLL_FROM_XTAL \
+								CONF CPLL_FROM_CONF
+								" CONF
+fi
+fi
+
+if [ "$CPLL_FROM_CONF" = "y" ]; then
+choice '   PLL_MULTI_RATIO conf' "24 MT7620_PLL_MULTI_RATIO_24 \
+                                        25 MT7620_PLL_MULTI_RATIO_25 \
+                                        26 MT7620_PLL_MULTI_RATIO_26 \
+                                        27 MT7620_PLL_MULTI_RATIO_27 \
+                                        28 MT7620_PLL_MULTI_RATIO_28 \
+                                        29 MT7620_PLL_MULTI_RATIO_29 \
+                                        30 MT7620_PLL_MULTI_RATIO_30 \
+                                        " 29
+if [ "$MT7620_PLL_MULTI_RATIO_24" = "y" ]; then
+define_hex	CPLL_MULTI_RATIO_CFG	0
+fi
+if [ "$MT7620_PLL_MULTI_RATIO_25" = "y" ]; then
+define_hex	CPLL_MULTI_RATIO_CFG	1
+fi
+if [ "$MT7620_PLL_MULTI_RATIO_26" = "y" ]; then
+define_hex	CPLL_MULTI_RATIO_CFG	2
+fi
+if [ "$MT7620_PLL_MULTI_RATIO_27" = "y" ]; then
+define_hex	CPLL_MULTI_RATIO_CFG	3
+fi
+if [ "$MT7620_PLL_MULTI_RATIO_28" = "y" ]; then
+define_hex	CPLL_MULTI_RATIO_CFG	4
+fi
+if [ "$MT7620_PLL_MULTI_RATIO_29" = "y" ]; then
+define_hex	CPLL_MULTI_RATIO_CFG	5
+fi
+if [ "$MT7620_PLL_MULTI_RATIO_30" = "y" ]; then
+define_hex	CPLL_MULTI_RATIO_CFG	6
+fi
+choice '    PLL_DIV_RATIO conf' "2 MT7620_PLL_DIV_RATIO_2 \
+                                      3 MT7620_PLL_DIV_RATIO_3 \
+                                      4 MT7620_PLL_DIV_RATIO_4 \
+                                     " 2
+if [ "$MT7620_PLL_DIV_RATIO_2" = "y" ]; then
+define_hex	CPLL_DIV_RATIO_CFG	0
+fi
+if [ "$MT7620_PLL_DIV_RATIO_3" = "y" ]; then
+define_hex	CPLL_DIV_RATIO_CFG	1
+fi
+if [ "$MT7620_PLL_DIV_RATIO_4" = "y" ]; then
+define_hex	CPLL_DIV_RATIO_CFG	2
+fi
+
+#hex "    SSC conf (CPLL_CFG0[4:9])"		CPLL_SSC_CFG			0x7
+define_hex	CPLL_SSC_CFG	0x7
+
+fi
+
+
 
 bool "Dual Image" DUAL_IMAGE_SUPPORT
 
@@ -876,20 +992,44 @@ if [ "$LAN_WAN_PARTITION" = "y" ]; then
 			       "
 fi
 
+if [ "$ON_BOARD_NAND_FLASH_COMPONENT" = "y" ]; then
 bool "Static DRAM Parameter" DRAM_PARAMETERS
 if [ "$DRAM_PARAMETERS" = "y" ]; then
 if [ "$ON_BOARD_SDR" = "y" ]; then
-hex " SDRAM_CFG0"		DRAM_CFG0	0
-hex " SDRAM_CFG1"		DRAM_CFG1	0
+hex " SDRAM_CFG0"		DRAM_CFG0	12A263A3
+hex " SDRAM_CFG1"		DRAM_CFG1	F80108E8
 else
-hex " SYSCFG1(hex)"		DRAM_CFG0	26
-hex " DDR_CFG3_ODT(hex)"	DRAM_CFG1	2
+hex " SYSCFG1 SoC ODT(hex)"				SYSCFG1_ODT			260
+if [ "$ON_BOARD_DDR1" = "y" ]; then
+hex " DDR_CFG0"                         DRAM_CFG0           34A1EB94
+hex " DDR_CFG1"                         DRAM_CFG1           202A2324
+else
+hex " DDR_CFG0"							DRAM_CFG0			249AA2E5
+hex " DDR_CFG1"							DRAM_CFG1			22322323
+fi
+hex " DDR_CFG2 CAS Latency"				DDR_CFG2_CAS		4
+hex " DDR_CFG3 DRAM ODT"				DDRCFG3_ODT			0
+hex " DDR_CFG3 Drive Strength"			DDR_CFG3_DS			1
+hex " DDR_CFG10 "						DDR_CFG10_SETTING	48484848
+bool " DDR_CFG11 DLL Enable Fixed Fine-grain Delay"			DDR_CFG11_FFD_ENABLE		n
+if [ "$DDR_CFG11_FFD_ENABLE" = "y" ]; then
+define_hex DDR_CFG11_FFD_EN  1
+else
+define_hex DDR_CFG11_FFD_EN  0
+fi
+bool " DDR_CFG11 DLL Enable Fixed Coarse-grain Delay"		DDR_CFG11_FCD_ENABLE		n
+if [ "$DDR_CFG11_FCD_ENABLE" = "y" ]; then
+define_hex DDR_CFG11_FCD_EN  1
+else
+define_hex DDR_CFG11_FCD_EN  0
+fi
+hex " DDR_CFG11 DLL Fixed Fine-grain Delay"			DDR_CFG11_FFD	0
+hex " DDR_CFG11 DLL Fixed Coarse-grain Delay"		DDR_CFG11_FCD	0
+hex	" DDR ODT Source"			DDR_ODT_SRC			d
+hex " DDR ODT Off Delay"		DDR_ODT_OFF_DLY		2
+hex " DDR ODT On Delay"			DDR_ODT_ON_DLY		2
 fi
 fi
-
-bool "CPU PLL adjustment" CPU_PLL_PARAMETERS
-if [ "$CPU_PLL_PARAMETERS" = "y" ]; then
-hex " CPU PLL ADJUSTMENT "	CPUPLLCFG	0
 fi
 
 if [ "$UBOOT_RAM" = "y" ]; then
@@ -901,32 +1041,57 @@ fi
 fi
 
 #########################################################################################3
-# RT71100
+# MT7621
 #########################################################################################3
-if [ "$RT71100_FPGA_BOARD" = "y" -o "$RT71100_ASIC_BOARD" = "y" ]; then
+if [ "$MT7621_FPGA_BOARD" = "y" -o "$MT7621_ASIC_BOARD" = "y" ]; then
 
-define_bool RT71100_MP y
+define_bool MT7621_MP y
 
 #-----------------------
-# RT71100 GMAC
+# MT7621 GMAC
 #-----------------------
-choice 'Port 5 Connect to' "None		P5_MAC_TO_NONE_MODE \
-			    Giga_Phy(RGMII)	P5_MAC_TO_PHY_MODE \
-	       	      	    Giga_SW/iNIC(RGMII)	P5_RGMII_TO_MAC_MODE \
-		            External_CPU(MII_RvMII) P5_MII_TO_MAC_MODE \
-		            External_CPU(RvMII_MII) P5_RMII_TO_MAC_MODE
-		      	   " None
-                       
-if [ "$P5_MAC_TO_PHY_MODE" = "y" ]; then
-   hex "GigaPHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1f
+
+choice 'Use GE1 or GE2' "GMAC1 MT7621_USE_GE1  \
+	                 GMAC2 MT7621_USE_GE2
+			"
+if [ "$MT7621_USE_GE1" = "y" ]; then
+choice 'GE1 connected to' "GE_MII_FORCE_100	 GE_MII_FORCE_100 \
+		           GE_RVMII_FORCE_100 GE_RVMII_FORCE_100 \
+		  	   GE_MII_AN		 GE_MII_AN \
+		           GE_RGMII_FORCE_1000   GE_RGMII_FORCE_1000 \
+		           GE_RGMII_AN		 GE_RGMII_AN 
+			  "
+else
+choice 'GE2 connected to' "GE_MII_FORCE_100		GE_MII_FORCE_100 \
+			    GE_RVMII_FORCE_100		GE_RVMII_FORCE_100 \
+  			    GE_MII_AN			GE_MII_AN \
+			    GE_RGMII_FORCE_1000		GE_RGMII_FORCE_1000 \
+			    GE_RGMII_AN			GE_RGMII_AN 
+			   "
 fi
 
-if [ "$P5_RGMII_TO_MAC_MODE" = "y" ]; then
+if [ "$GE_MII_FORCE_100" = "y" -o \
+     "$GE_RVMII_FORCE_100" = "y" ]; then
+    define_bool MAC_TO_100SW_MODE y
+fi     
+
+if [ "$GE_MII_AN" = "y" ]; then
+    define_bool MAC_TO_100PHY_MODE y
+    hex "10/100 PHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1f
+fi
+
+if [ "$GE_RGMII_FORCE_1000" = "y" ]; then
+    define_bool  MAC_TO_VITESSE_MODE y
     define_bool GPIOx_RESET_MODE y
 fi
 
+if [ "$GE_RGMII_AN" = "y" ]; then
+    define_bool  MAC_TO_GIGAPHY_MODE y
+    hex "GigaPHY address for Auto Polling" MAC_TO_GIGAPHY_MODE_ADDR 0x1f
+fi
+
 #-----------------------
-# RT71100 FLASH
+# MT7621 FLASH
 #-----------------------
 choice 'Flash Type' "NAND ON_BOARD_NAND_FLASH_COMPONENT \
                      SPI ON_BOARD_SPI_FLASH_COMPONENT
@@ -939,7 +1104,7 @@ choice 'Flash Size' "4M ON_BOARD_4M_FLASH_COMPONENT \
 		    " 4M
 fi
 #-----------------------
-# RT71100 DRAM
+# MT7621 DRAM
 #-----------------------
 choice 'DRAM Type' "SDR ON_BOARD_SDR \
 	            DDR1 ON_BOARD_DDR1 \
@@ -966,19 +1131,20 @@ fi
 define_bool ON_BOARD_16BIT_DRAM_BUS y
 
 #-----------------------
-# RT71100 Option
+# MT7621 Option
 #-----------------------
 comment ""
-choice 'PDMA Version' "OLD PDMA_OLD \
-	               NEW PDMA_NEW
-		      "OLD
 
-bool "Rx Scatter-Gather DMA" RX_SCATTER_GATTER_DMA
+define_bool PDMA_NEW y
+define_bool RX_SCATTER_GATTER_DMA y
 
 if [ "$ON_BOARD_SPI_FLASH_COMPONENT" == "y" ]; then
 choice 'Ram/Rom version' "RAM UBOOT_RAM \
 			  ROM UBOOT_ROM 
 			 " ROM
+#choice 'Small Uboot/Config partition' "Normal_Partition_5_sectors NORMAL_UBOOT_PARTITION \
+#				       Small_Partition_3_sectors SMALL_UBOOT_PARTITION
+#				      " Normal_Partition_5_sectors
 else
 define_bool UBOOT_RAM y
 fi

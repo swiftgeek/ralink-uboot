@@ -84,6 +84,9 @@ typedef unsigned char		u_char;
 typedef unsigned short		u_short;
 typedef unsigned int		u_int;
 typedef unsigned long		u_long;
+#ifdef MTK_MSDC
+typedef int			bool;
+#endif
 
 /* sysv */
 typedef unsigned char		unchar;
@@ -91,6 +94,14 @@ typedef unsigned short		ushort;
 typedef unsigned int		uint;
 typedef unsigned long		ulong;
 
+#ifdef MTK_MSDC
+typedef unsigned char       uint8;
+typedef unsigned short      uint16;
+typedef unsigned int        uint32;
+typedef signed char         int8;
+typedef signed short        int16;
+typedef signed int          int32;
+#endif
 #ifndef __BIT_TYPES_DEFINED__
 #define __BIT_TYPES_DEFINED__
 

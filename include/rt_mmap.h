@@ -276,7 +276,7 @@
 //Clock Conf Register
 #define RALINK_UPHY0_CLK_EN		(1<<25)
 
-#elif defined (RT6352_FPGA_BOARD) || defined (RT6352_ASIC_BOARD) 
+#elif defined (MT7620_FPGA_BOARD) || defined (MT7620_ASIC_BOARD) 
 
 #define RALINK_SYSCTL_BASE              0xB0000000
 #define RALINK_TIMER_BASE               0xB0000100
@@ -304,6 +304,9 @@
 #define RALINK_MCNT_CFG                 0xB0000D00
 #define RALINK_COMPARE                  0xB0000D04
 #define RALINK_COUNT                    0xB0000D08
+
+#define RALINK_CPLLCFG0_REG		(RALINK_SYSCTL_BASE+0x54)
+#define RALINK_CPLLCFG1_REG		(RALINK_SYSCTL_BASE+0x58)
 
 //Interrupt Controller
 #define RALINK_INTCTL_SYSCTL            (1<<0)
@@ -347,32 +350,42 @@
 #define RALINK_MIPS_CNT_RST             (1<<28)
 #define RALINK_CRYPTO_RST               (1<<29)
 
-#elif defined (RT71100_FPGA_BOARD) || defined (RT71100_ASIC_BOARD) 
+
+//Clock Conf Register
+#define RALINK_UPHY1_CLK_EN     (1<<22)
+#define RALINK_UPHY0_CLK_EN     (1<<25)
+
+#elif defined (MT7621_FPGA_BOARD) || defined (MT7621_ASIC_BOARD) 
 
 #define RALINK_SYSCTL_BASE              0xB0000000
 #define RALINK_TIMER_BASE               0xB0000100
 #define RALINK_INTCL_BASE               0xB0000200
 #define RALINK_MEMCTRL_BASE             0xB0000300
+#define RALINK_RBUS_MATRIXCTL_BASE      0xB0000400
 #define RALINK_UART_BASE                0x10000500
 #define RALINK_PIO_BASE                 0xB0000600
+#define RALINK_NAND_CTRL_BASE           0xB0000810
 #define RALINK_I2C_BASE                 0xB0000900
 #define RALINK_I2S_BASE                 0xB0000A00
 #define RALINK_SPI_BASE                 0xB0000B00
-#define RALINK_NAND_CTRL_BASE           0xB0000800
 #define RALINK_UART_LITE_BASE           0x10000C00
+#define RALINK_MIPS_CNT_BASE            0x10000D00
 #define RALINK_PCM_BASE                 0xB0002000
 #define RALINK_GDMA_BASE                0xB0002800
+#define RALINK_CRYPTO_ENGING_BASE       0xB0004000
 #define RALINK_FRAME_ENGINE_BASE        0xB0100000
 #define RALINK_ETH_SW_BASE              0xB0110000
-#define RALINK_PCI_BASE                 0xB0140000
 #define RALINK_USB_DEV_BASE             0x10120000
+#define RALINK_PCI_BASE                 0xB0140000
 #define RALINK_11N_MAC_BASE             0xB0180000
-#define RALINK_PLC_MAC_BASE             0xB0200000
 #define RALINK_USB_HOST_BASE            0x101C0000
 
 #define RALINK_MCNT_CFG                 0xB0000D00
 #define RALINK_COMPARE                  0xB0000D04
 #define RALINK_COUNT                    0xB0000D08
+
+#define RALINK_CPLLCFG0_REG		(RALINK_SYSCTL_BASE+0x54)
+#define RALINK_CPLLCFG1_REG		(RALINK_SYSCTL_BASE+0x58)
 
 //Interrupt Controller
 #define RALINK_INTCTL_SYSCTL            (1<<0)
@@ -385,8 +398,12 @@
 #define RALINK_INTCTL_DMA               (1<<7)
 #define RALINK_INTCTL_PC                (1<<9)
 #define RALINK_INTCTL_I2S               (1<<10)
+#define RALINK_INTCTL_SPI               (1<<11)
 #define RALINK_INTCTL_UARTLITE          (1<<12)
+#define RALINK_INTCTL_CRYPTO            (1<<13)
 #define RALINK_INTCTL_ESW               (1<<17)
+#define RALINK_INTCTL_UHST              (1<<18)
+#define RALINK_INTCTL_UDEV              (1<<19)
 #define RALINK_INTCTL_GLOBAL            (1<<31)
 
 //Reset Control Register
@@ -409,6 +426,13 @@
 #define RALINK_UDEV_RST                 (1<<25)
 #define RALINK_PCIE0_RST                (1<<26)
 #define RALINK_PCIE1_RST                (1<<27)
+#define RALINK_MIPS_CNT_RST             (1<<28)
+#define RALINK_CRYPTO_RST               (1<<29)
+
+
+//Clock Conf Register
+#define RALINK_UPHY1_CLK_EN     (1<<22)
+#define RALINK_UPHY0_CLK_EN     (1<<25)
 
 #elif defined (RT2883_FPGA_BOARD) || defined (RT2883_ASIC_BOARD)
 
@@ -598,7 +622,7 @@
 #define RALINK_UPHY0_CLK_EN		(1<<18)
 #define RALINK_GE1_CLK_EN		(1<<16)
 
-#elif defined (RT63365_FPGA_BOARD) || defined (RT63365_ASIC_BOARD) 
+#elif defined (RT6855A_FPGA_BOARD) || defined (RT6855A_ASIC_BOARD) 
 
 #define RALINK_SYSCTL_BASE		0xBFB00000
 #define RALINK_TIMER_BASE		0xBFBF0100
@@ -686,7 +710,7 @@
 #endif //W9751G6IB_25
 
 #endif //DDR
-#if defined (RT63365_ASIC_BOARD) || defined (RT63365_FPGA_BOARD)
+#if defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD)
 #define RALINK_SDRAM_CFG0_REG 	(RALINK_MEMCTRL_BASE)
 #define RALINK_SDRAM_CFG1_REG 	(RALINK_MEMCTRL_BASE+0x4)
 #define RALINK_DDR_CFG0		(RALINK_MEMCTRL_BASE+0x40)
@@ -696,4 +720,27 @@
 #define RALINK_DDR_CFG4		(RALINK_MEMCTRL_BASE+0x50)
 #define RALINK_DDR_CFG9		(RALINK_MEMCTRL_BASE+0x64)
 #endif
+
+#if defined (MT7620_ASIC_BOARD) || defined (MT7620_FPGA_BOARD)
+/* CPLL related */
+#define RALINK_CPLLCFG0_REG	(RALINK_SYSCTL_BASE+0x54)
+#define RALINK_CPLLCFG1_REG	(RALINK_SYSCTL_BASE+0x58)
+#define CPLL_SW_CONFIG                  (0x1UL << 31)
+#define CPLL_MULT_RATIO_SHIFT           16
+#define CPLL_MULT_RATIO                 (0x7UL << CPLL_MULT_RATIO_SHIFT)
+#define CPLL_DIV_RATIO_SHIFT            10
+#define CPLL_DIV_RATIO                  (0x3UL << CPLL_DIV_RATIO_SHIFT)
+#define BASE_CLOCK                      40      /* Mhz */
+#endif
+
+/* Timer related */
+#if defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD)
+#define RALINK_TIMER_CTL	(RALINK_TIMER_BASE + 0x00)
+#define RALINK_TIMER5_LDV	(RALINK_TIMER_BASE + 0x2C)
+#endif
+
+#if defined (RT6855A_ASIC_BOARD) || defined (RT6855A_FPGA_BOARD)
+#define RALINK_HIR_REG	(RALINK_SYSCTL_BASE+0x64)
+#endif
+
 #endif // __RALINK_MMAP__
